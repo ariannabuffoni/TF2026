@@ -1,0 +1,158 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+
+<link rel="stylesheet" type="text/css" href="css/mystyle.css">
+<!--
+    <script type="text/javascript" src="../css/issStyle.js"></script>
+-->
+    
+</head>
+   
+<title>TF26_v0</title></head>
+    
+
+<body>
+<div id="top">
+<h1>TF26 - Sprint0</h1>
+</div>  
+
+<div class="body">
+<p><b>Goal Sprint0: </b> Analisi dei Requisiti</p>
+
+
+<h2>Introduction</h2>
+<p>
+A <i>Maritime Cargo shipping company</i> (fron now on, simply <b>company</b>) intends to automate the operations of load of
+<b>containers</b> in the ship’s cargo hold (or simply <b>hold</b>). To this end, the company plans to employ a <i>Differential Drive
+Robot</i> (from now, called <b>cargorobot</b>).
+</p>
+
+<p>
+The <i>hold</i> is a rectangular, flat area with an Input/Output port (<b>IOPort</b>). The area provides <code>4 slots</code> to store the
+containers and a slot named <b>slot5</b>.
+</p>
+
+<div style="text-align: center;">
+	<img src="./img/TF26_immagine_consegna.png" alt="immagine consegna" width="75%" height="75%">
+</div>
+
+<p>
+	In the picture above:
+	<ul>
+		<li>
+			The <b>slots1-4</b> depict the hold areas reserved to store one <i>container</i> each,
+		</li>
+		<li>
+			The <b>slots5</b> depicts an area, where the <i>cargorobot</i> must temporarily store a container, before to place it in one of
+			the <i>slots1-4</i>. During temporary storage, a ‘marker’ device labels the container with an identification barcode and
+			signals when this marking activity is completed.
+		</li>
+		<li>
+			The <b>IOPort</b> is a device with a <b>pushbutton</b> and <b>a display</b>. The <i>pushbutton</i> is pressed by the customer in order
+			to to send a request to load a container on the cargo. The <i>display</i> is used to show the answer to the request and
+			to show the current state of the <i>hold</i>.
+		</li>
+		<li>
+			The <b>sensor</b> associated to the <i>IOPort</i> is a device (a <i>sonar</i>) used to detect the presence of a container, when it
+			measures a distance D, such that <code>D &lt; DFREE/2</code>, during a reasonable time (e.g. 3 secs).
+		</li>
+	</ul>
+</p>
+
+<h2>Requirements</h2>
+<p>
+	The company asks us to build service named <b>cargoservice</b> that should work as follows.
+</p>
+
+<p>
+	The <i>cargoservice</i> is able to receive a <b>request to load</b> a container sent by some customer by using the <i>pushbutton</i> of the <i>IOPort</i>.
+	<ul>
+		<li>
+			It sends the answer <code>retrylater</code>, if the <b>IOPort</b> is currently occupied by a container or if the system is <i>Out of service</i>
+		</li>
+		<li>
+			It rejects the request when the hold is already full, i.e. the <code>slots1-4</code> are already occupied.
+		</li>
+		<li>
+			Otherwise, it considers the system as <b>engaged</b>, detects a free slot and returns as answer the name of such a
+			reserved slot. While engaged, the system must blink a Led.
+		</li>
+	</ul>
+</p>
+
+<p>
+	When the <i>request</i> to load is accepted, the customer must move the container in the <i>sensor</i> area within prefixed amount
+	of time (e.g. 30 secs), otherwise the systems becomes <b>disengaged</b>. Then, the <i>cargoservice</i> uses the <i>cargorobot</i> to
+	move the container from the <i>IOPort</i> to the <i>slot5</i> (for marking the container) and then to the reserved slot.
+</p>
+
+<p>
+	The service must also show on the <i>display</i> on the <i>IOPort</i>:
+	<ul>
+		<li>
+			the current state of the <i>hold</i>
+		</li>
+		<li>
+			the message <b>‘Service working’</b>, when it is all is going well
+		</li>
+		<li>
+			the message <b>‘Out of service’</b> if the <i>sonar sensor</i> measures a distance <code>D &gt; DFREE</code> for at least 3 secs (perhaps a
+			failure of the <i>sonar</i>).
+		</li>
+	</ul>
+</p>
+
+
+
+<h2>Requirement analysis</h2>
+<p>
+
+</p>	
+
+<h2>Problem analysis</h2>
+<p>
+	
+</p>
+
+<h2>Test plans</h2> 
+<p>
+	
+</p>
+
+
+<h2>Project</h2> 
+<p>
+	
+</p>
+
+<h2>Testing</h2> 
+<p>
+	
+</p> 
+
+<h2>Deployment</h2> 
+<p>
+	
+</p>
+ 
+<h2>Maintenance</h2> 
+<p>
+	
+</p>
+
+<div style="background-color:rgba(86, 56, 253, 0.9); width:100%;text-align:left;color:white">
+By Arianna Buffoni email: arianna.buffoni@studio.unibo.it,
+<img src="./img/foto_ari.jpg" alt="foto" width="8%" height="8%">
+GIT repo: https://github.com/ariannabuffoni/IngegneriaSistemiSoftware2026.git
+<br/><br/><br/>
+By Desirée Pellegrini email: desiree.pellegrini@studio.unibo.it, 
+<img src="./img/foto_desy.jpg" alt="foto Desy" width="8%" height="8%">
+GIT repo: https://github.com/desypellegrini/IngegneriaSistemiSoftware2026
+<br/><br/><br/>
+By Gianluca Varisco email: gianluca.varisco@studio.unibo.it, 
+<img src="./img/foto_gian.jpg" alt="foto Gianluca" width="8%" height="8%">
+GIT repo: https://github.com/...
+</div> 
+</body>
+</html>
