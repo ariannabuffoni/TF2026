@@ -112,12 +112,16 @@ containers and a slot named <b>slot5</b>.
 <h2>Requirement analysis</h2>
 <div class="remark">
 <p>
-	<b>Sistema cargoservice</b>: è il software centrale responsabile della logica di business e del coordinamento. Il sistema comprende le seguenti entità:</p>
+	Il sistema software preso in esame è composto dalle seguenti entità:</p>
 
 	<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>cargorobot (DDR)</h3>
-		<p>È un entità computazionale attiva che modella il comportamento del robot fisico a guida differenziale (DDR) operante all'interno della stiva ed è modellata come attore.
+		<p>
+			È un entità computazionale attiva che modella il comportamento del robot fisico a guida differenziale (DDR) operante all'interno della stiva ed è modellata come attore QAK.
 			Riceve ed esegue i comandi di macro-movimentazione inviati dall'orchestratore centrale per navigare sequenzialmente tra l'IOPort, lo slot 5 e gli alloggiamenti finali (slot 1-4). Dal punto di vista cinematico, si interfaccia direttamente con il servizio esterno robotsmart26 messo a disposizione dal committente per colmare l'abstraction gap. Questo modulo solleva il nostro software dall'onere di calcolare i comandi di basso livello (avanza, ruota, stop), poiché riceve in input le coordinate cartesiane di destinazione che calcola autonomamente il percorso ottimale sulla griglia. La responsabilità dell'orchestrazione logica della missone rimane tuttavia in capo al cargorobot. 
+			<!-- Secondo me qui bisogna mettere una breve descrizione dei vari DDR che abbiamo visto nel corso (VirtualRobot26, RobotObj26, RobotService26, RobotSmart26)
+			 e poi concludere con quale è il più adatto per questo progetto e che quindi andremo ad usare (io credo la risposta sia RobotSmart26, ma non ho letto tutta la documentazione, ho scelto a sentimento)
+			 Credo che smartRobot26 fornisca anche la mappa mentale e cose simili quindi ci si può ricollegare con la stiva-->
 		</p></div>
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>IOPort</h3>
@@ -130,7 +134,7 @@ containers and a slot named <b>slot5</b>.
 		
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Sensore / Sonar</h3>
-		<p>Si tratta di un'entità software attiva, un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento
+		<p>Si tratta di un'entità software proattiva, un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento
 		continuo dello spazio antistante, calcolando la distanza D dall'ostacolo più vicino. Questo software di basso livello trasmette i dati grezzi sottoforma di stringhe
 		formattate come distance(DIRECTION, D). Tali letture vegono inviate al sistema per consentire la verifica dei vincoli temporali e di soglia:</p> 
 			<ul>
@@ -139,7 +143,7 @@ containers and a slot named <b>slot5</b>.
 			<li>se una misurazione D &gt DFREE persiste per più di 3 secondi, viene notificata una condizione di potenziale
 			guasto hardware (stato Out of service).</li>
 			</ul> 
-		<p>Domanda al committente: il software che gestisce il sonar è già disponibile?</p>
+		<p>Domanda al committente: il software che gestisce il sonar è già disponibile?</p> <!-- al posto di questo potremmo mettere la formalizzazione in QAK e le due opzioni di comunicazione con evento o con risposta a richiesta-->
 		</div>
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
@@ -149,6 +153,29 @@ containers and a slot named <b>slot5</b>.
 		identificativo sul carico. Il dispositivo trattiene logicamente il flusso operativo per un tempo fisso (durata della marcatura) e, una volta completata l'operazione,
 		genera un messaggio di notifica. Trattandosi di un'entità integrata nello stesso nodo logico di cargoservice, questo messaggio di sblocco viene trasmesso internamente
 		per segnalare al robot che può prelevare il container marcato e procedere verso la destinazione finale.</p>
+<pre>
+System cargoservice
+
+Dispatch storeContainer : storeContainer(C)
+Dispatch markingDone : markingDone(C)
+
+Context ctxcargoservice ip [host="localhost" port=8120]
+
+QActor marker context ctxcargoservice{
+	State s0 initial{
+		println("$name | starts ") color blue
+	}
+	Transition t0 
+		wheMsg storeContainer -> marking
+
+	State marking{
+		// logica di marcatura del container
+		forward cargorobot -m markingDone : markingDone(0)
+	}
+	Transition t0 
+		wheMsg storeContainer -> marking
+}
+</pre>
 		</div>
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
@@ -159,6 +186,7 @@ containers and a slot named <b>slot5</b>.
 		algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata
 		una nuova richiesta di accesso. 
 		HOME: da completare copiando da uno vecchio
+		<!-- già fornita da ddr???-->
 		</p>
 		</div>
 
@@ -166,10 +194,30 @@ containers and a slot named <b>slot5</b>.
         <h3>Led</h3>
 		<p>Rappresenta un'entità software passiva di output associata a un attuatore luminoso fisico. La sua responsabilità è quella di fornire una segnalazione visiva immediata dello stato operativo del sistema verso l'esterno. Il suo comportamento è strettamente vincolato alle transizioni di stato del servizio centrale: deve attivare la modalità lampeggiante per indicare che il sistema si trova in uno stato di impegno lavorativo, mantenendo tale comportamento durante tutte le fasi di trasferimento dei container.</p>
 		</div>
+
+		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+		<h3>Cargoservice</h3>
+		<p>
+			Rappresenta il software centrale responsabile della logica di business e del coordinamento. Riceve le richieste dalla IOPort. Consulta lo stato della stiva per accettare (riservando uno slot) o rifiutare il carico. Gestisce i timeout di presenza container (30 secondi)
+			e comanda il comportamento del robot e del led di segnalazione.
+			Formalizzazione dei messaggi:
+<pre>
+Request loadrequest : loadrequest(C)
+Reply retrylater : retrylater(CAUSE) for loadrequest
+Reply reject : reject(R) for loadrequest
+Reply engaged : engaged(RESERVED_SLOT) for loadrequest
+</pre>
+		</p>
+		</div>
 	
-	<p>Riceve le richieste dalla IOPort. Consulta lo stato della stiva per accettare (riservando uno slot) o rifiutare il carico. Gestisce i timeout di presenza container (30 secondi)
-	e comanda il comportamento del robot e del led di segnalazione.
-	<!-- FORMALIZZARE I MESSAGGI DI RICHIESTA E RISPOSTA -->
+		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+		<h3>Container (????)</h3>
+		</div>
+		
+</p>
+<p>
+	<h2>TEST PLAN</h2>
+	<!-- USER STORIES: dire cosa si aspetta che l'utente finale veda (es preme il bottone quando libero, già occupato, out of service)-->
 </p>	
 </div>
 
