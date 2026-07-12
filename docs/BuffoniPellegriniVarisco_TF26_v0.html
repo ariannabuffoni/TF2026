@@ -107,7 +107,53 @@ containers and a slot named <b>slot5</b>.
 
 <h2>Requirement analysis</h2>
 <p>
-
+	Sistema cargoservice: è il software centrale responsabile della logica di business e del cordinamento. Il sistema comprende le seguenti entità:
+	<ul>
+		<li>
+			cargorobot (DDR): è un entità computazionale autonoma modellata come attore che rappresenta il robot a guida differenziale all'interno del sistema.
+			Riceve ed esegue i comandi di macro-movimentazione inviati dall'orcchestratore centrale per navigare sequenzialmente tra l'IOPort, lo slot 5 e gli alloggiamenti
+			finali slot 1-4. Dal punto di vista cinematico, si interfaccia direttamente con il servizio esterno robotsmart26 messo a disposizione dal committente per 
+			colamre l'abstraction gap. Questo modulo solleva il nostro software dall'onere di calcolare i comandi di basso livello (avanza, ruota, stop), poiché riceve in 
+			input le coordinate cartesiane di destinazione che calcola autonomamente il percorso ottimale sulla griglia. La responsabilità dell'orchestrazione logica della
+			missone rimane tuttavia in capo all'attore cargorobot. 
+		</li>
+		<li>
+			IOPort (pulsante e display): è il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo computazionalmente indipendente
+			che espone una Web GUI. Gestisce i flussi di input e output utente disaccopandoli dalla logica aziendale core. Il suo componente di input (pushbotton) cattura 
+			l'iterazione del cliente e la traduce in una richiesta formale di carico (load request) inviata verso il sistema. Il suo componente di output (display) si comporta come
+			un terminale reattivo: riceve i messaggi e i dati sullo stato corrente della stiva inviati dal sistema e si occupa di effettuare il rendering visivo, mostrando
+			in tempo reale lo stato di occupazione dei quattro slot e i messaggi operativi critici come "Service working" o "Out of service".
+		</li>
+		<li>
+			sensore/sonar: è un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento
+			continuo dello spazio antistante misurando la distanza D dall'ostacolo più vicino. Questo software di basso livello trasmette i dati grezzi sottoforma di stringhe
+			formattate come distance(DIRECTION, D). Tali letture vegono inviate al sistema per consentire la verfica dei vincoli temporali e di soglia: uan distanza D &lt;
+			DFREE/2 persiste per almeno 3 secondi valida la presenza fisica di un container da validare, mentre una lettura D &gt; DFREE per più di 3 secondi notifica un potenziale
+			guasto hardware del sensore. 
+			<br/> Domanda al committente: il software che gestisce il sonar è già disponibile?
+		</li>
+		<li>
+			dispositivo marker (slot 5): è un dispositivo di scansione e identificazione localizzato in corrispondenza dello slot 5, l'area riservata alla sosta temporanea.
+			Si attiva non appena il cargorobot deposita un container all'interno dello slot 5. Avvia un'operazione automatica di etichettatura applicando un codice a barre 
+			identificativo sul carico. Il dispositivo trattiene logicamente il flusso di esecuzione per un tempo fisso (durata della marcatura) e, una volta completata l'operazione,
+			genera un messaggio di notifica. Trattandosi di un'entità integrata nello stesso nodo logico di cargoservice, questo messaggio di sblocco viene trasmesso internamente
+			per segnalare al robot che può prelevare il container marcato e procedere verso la destinazione finale.
+		</li>
+		<li>
+			stiva (hold): è un componente software passivo implementato come un oggetto Java puro (POJO) che funge da mappa logica in memoria dello stato della stiva. Modellla e 
+			traccia la situazione dei quattro slot di deposito principali (slot 1-5). Ciascun alloggiamento viene catalogato attraverso tre stati logici ben definiti: free (disponibile),
+			reserved (prenotato da una richiesta accettata, ma non ancora occupato fisicamente dal container) e occupied (container depositato). La classe incapsula la logica 
+			algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata
+			una nuova richiesta di accesso. 
+			HOME: da completare copiando da uno vecchio
+		</li>
+		<li>
+			led: 
+		</li>
+	</ul>
+	Riceve le richieste dalla IOPort. Consulta lo stato della stiva per accettare (riservando uno slot) o rifiutare il carico. Gestisce i timeout di presenza container (30 secondi)
+	e comanda il comportamento del robot e del led di segnalazione.
+	<!-- FORMALIZZARE I MESSAGGI DI RICHIESTA E RISPOSTA -->
 </p>	
 
 <h2>Problem analysis</h2>
@@ -151,7 +197,7 @@ By Desirée Pellegrini email: desiree.pellegrini@studio.unibo.it,
 GIT repo: https://github.com/desypellegrini/IngegneriaSistemiSoftware2026
 <br/><br/><br/>
 By Gianluca Varisco email: gianluca.varisco@studio.unibo.it, 
-<img src="./img/foto_gian.jpg" alt="foto Gianluca" width="8%" height="8%">
+<img src="./img/foto_gian.jpeg" alt="foto Gianluca" width="8%" height="8%">
 GIT repo: https://github.com/gianluca-varisco/issLab2026
 </div> 
 </body>
