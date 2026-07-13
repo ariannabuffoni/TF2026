@@ -23,7 +23,7 @@
 
 <h2>Introduction</h2>
 <p>
-A <i>Maritime Cargo shipping company</i> (fron now on, simply <b>company</b>) intends to automate the operations of load of
+A <i>Maritime Cargo shipping company</i> (from now on, simply <b>company</b>) intends to automate the operations of load of
 <b>containers</b> in the ship’s cargo hold (or simply <b>hold</b>). To this end, the company plans to employ a <i>Differential Drive
 Robot</i> (from now, called <b>cargorobot</b>).
 </p>
@@ -44,18 +44,13 @@ containers and a slot named <b>slot5</b>.
 			The <b>slots1-4</b> depict the hold areas reserved to store one <i>container</i> each,
 		</li>
 		<li>
-			The <b>slots5</b> depicts an area, where the <i>cargorobot</i> must temporarily store a container, before to place it in one of
-			the <i>slots1-4</i>. During temporary storage, a ‘marker’ device labels the container with an identification barcode and
-			signals when this marking activity is completed.
+			The <b>slot5</b> depicts an area, where the <i>cargorobot</i> must temporarily store a container, before to place it in one of the <i>slots1-4</i>. During temporary storage, a ‘marker’ device labels the container with an identification barcode and signals when this marking activity is completed.
 		</li>
 		<li>
-			The <b>IOPort</b> is a device with a <b>pushbutton</b> and <b>a display</b>. The <i>pushbutton</i> is pressed by the customer in order
-			to to send a request to load a container on the cargo. The <i>display</i> is used to show the answer to the request and
-			to show the current state of the <i>hold</i>.
+			The <b>IOPort</b> is a device with a <b>pushbutton</b> and <b>a display</b>. The <i>pushbutton</i> is pressed by the customer in order to to send a request to load a container on the cargo. The <i>display</i> is used to show the answer to the request and to show the current state of the <i>hold</i>.
 		</li>
 		<li>
-			The <b>sensor</b> associated to the <i>IOPort</i> is a device (a <i>sonar</i>) used to detect the presence of a container, when it
-			measures a distance D, such that <code>D &lt; DFREE/2</code>, during a reasonable time (e.g. 3 secs).
+			The <b>sensor</b> associated to the <i>IOPort</i> is a device (a <i>sonar</i>) used to detect the presence of a container, when it measures a distance D, such that <code>D &lt; DFREE/2</code>, during a reasonable time (e.g. 3 secs).
 		</li>
 	</ul>
 </p>
@@ -115,41 +110,41 @@ containers and a slot named <b>slot5</b>.
 	Il sistema software preso in esame è composto dalle seguenti entità:</p>
 
 	<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>cargorobot (DDR)</h3>
+        <h3>Cargorobot (DDR)</h3>
 		<p>
-			È un entità computazionale attiva che modella il comportamento del robot fisico a guida differenziale (DDR) operante all'interno della stiva ed è modellata come attore QAK.
-			Riceve ed esegue i comandi di macro-movimentazione inviati dall'orchestratore centrale per navigare sequenzialmente tra l'IOPort, lo slot 5 e gli alloggiamenti finali (slot 1-4). 
-			Il committente ha messo a disposizione più varianti di VirtualRobot26: RobotSmart26, RobotService26, RobotObj26 (METTERE LINK!!!!). Si sceglie RobotSmart26 in quanto permette di colmare maggiormente l'abstraction gap. 
-			Questo modulo solleva il nostro software dall'onere di calcolare i comandi di basso livello (avanza, ruota, stop), poiché riceve in input le coordinate cartesiane di destinazione che calcola autonomamente il percorso ottimale sulla griglia. La responsabilità dell'orchestrazione logica della missone rimane tuttavia in capo al cargorobot. 
+			È un entità software attiva che rappresenta il comportamento del robot fisico a guida differenziale (DDR) operante all'interno della stiva ed è modellata come attore QAK.
+			Riceve ed esegue i comandi di macro-movimentazione inviati dall'orchestratore centrale per spostarsi sequenzialmente tra l'IOPort, lo slot 5 e gli alloggiamenti finali (slot 1-4).<br> 
+			Il committente ha messo a disposizione più varianti di <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.25" target="_blank">VirtualRobot26</a>: <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.30" target="_blank">RobotSmart26</a>, <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.27" target="_blank">RobotService26</a>, <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.26" target="_blank">RobotObj26</a>. Si sceglie di utilizzare RobotSmart26 in quanto permette di colmare maggiormente l'abstraction gap. 
+			Questo modulo solleva il nostro software dall'onere di calcolare i comandi di movimento di basso livello (avanza, ruota, stop), poiché riceve in input le coordinate cartesiane di destinazione e calcola autonomamente il percorso ottimale sulla griglia. La responsabilità dell'orchestrazione logica della missone rimane tuttavia in capo al cargorobot. 
 			<!-- Secondo me qui bisogna mettere una breve descrizione dei vari DDR che abbiamo visto nel corso (VirtualRobot26, RobotObj26, RobotService26, RobotSmart26)
 			 e poi concludere con quale è il più adatto per questo progetto e che quindi andremo ad usare (io credo la risposta sia RobotSmart26, ma non ho letto tutta la documentazione, ho scelto a sentimento)
 			 Credo che smartRobot26 fornisca anche la mappa mentale e cose simili quindi ci si può ricollegare con la stiva
 			 METTERE IL LINK!!!!-->
 		</p></div>
+
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>IOPort</h3>
-		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo computazionalmente indipendente che espone una Web GUI. Gestisce i flussi di input e output utente disaccoppiandoli dalla logica aziendale core. </p>
+		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI. Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core. </p>
 			<ul>
 				<li>Il suo componente di input (pushbotton) è un elemento reattivo che cattura l'interazione del cliente (pressione del pulsante) e la traduce in una richiesta formale di carico (loadrequest) indirizzata verso il sistema</li>
-				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di effettuare il rendering visivo delle informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione corrente dei quattro slot e i messaggi operativi critici ("Service working" o "Out of service").</li>
+				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e i messaggi operativi critici ("Service working" o "Out of service").</li>
 			</ul> 
 		</div>
 		
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Sensore / Sonar</h3>
-		<p>Si tratta di un'entità software proattiva, un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento
-		continuo dello spazio antistante, calcolando la distanza D dall'ostacolo più vicino. Questo software di basso livello trasmette i dati grezzi sottoforma di stringhe
-		formattate come distance(DIRECTION, D). Tali letture vegono inviate al sistema per consentire la verifica dei vincoli temporali e di soglia:</p> 
+		<p>Si tratta di un'entità software proattiva che rappresenta un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento continuo dello spazio antistante, calcolando la distanza D dall'ostacolo più vicino. Questo software di basso livello trasmette i dati grezzi sottoforma di stringhe
+		formattate come distance(DIRECTION, D) per consentire la verifica dei vincoli temporali e di soglia del sistema:</p> 
 			<ul>
 				<li>se una misurazione D &lt;
 			DFREE/2 persiste per un intervallo temporale ragionevole (es. almeno 3 secondi), viene validata la presenza fisica di un carico da elaborare; </li>
 			<li>se una misurazione D &gt DFREE persiste per più di 3 secondi, viene notificata una condizione di potenziale
 			guasto hardware (stato Out of service).</li>
 			</ul> 
-			Poiché è necesario che le informazioni possano essere utilizzate dal sistema, è necessario formalizzare il metodo con cui questi dati sono accessibili. Ci sono due opzioni:
+			Per far sì che le informazioni possano essere utilizzate dal sistema, è necessario formalizzare il metodo con cui questi dati sono accessibili. Ci sono due opzioni:
 			<ol>
 				<li>
-					può essere il sonsore a comunicare, tramite un evento (poiché non conosce il destinatario dell'informazione), la distanza rilevata. In questo caso formalizzo il seguente attore:
+					può essere il sensore a comunicare, tramite un evento (poiché non conosce a priori il destinatario dell'informazione), la distanza rilevata. In questo caso formalizzo il seguente attore:
 					<pre>
 System cargoservice
 
@@ -228,16 +223,13 @@ QActor sonar context ctxcargoservice {
 					</pre>
 				</li>
 			</ol>
-		<p>Domanda al committente: il software che gestisce il sonar è già disponibile?</p> <!-- al posto di questo potremmo mettere la formalizzazione in QAK e le due opzioni di comunicazione con evento o con risposta a richiesta-->
+		<p><i>Domanda al committente: il software che gestisce il sonar è già disponibile?</i></p> <!-- al posto di questo potremmo mettere la formalizzazione in QAK e le due opzioni di comunicazione con evento o con risposta a richiesta-->
 		</div>
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Dispositivo Marker (Slot 5)</h3>
-		<p>Si tratta di un dispositivo di scansione e identificazione localizzato in corrispondenza dello slot 5, l'area riservata alla sosta temporanea.
-		Si attiva non appena viene segnalata la deposizione di un container nello slot 5, avviando un'operazione automatica di etichettatura per applicare un codice a barre 
-		identificativo sul carico. Il dispositivo trattiene logicamente il flusso operativo per un tempo fisso (durata della marcatura) e, una volta completata l'operazione,
-		genera un messaggio di notifica. Trattandosi di un'entità integrata nello stesso nodo logico di cargoservice, questo messaggio di sblocco viene trasmesso internamente
-		per segnalare al robot che può prelevare il container marcato e procedere verso la destinazione finale.</p>
+		<p>Si tratta di un dispositivo di scansione e identificazione localizzato in corrispondenza dello slot 5, l'area riservata alla sosta temporanea.<br>
+		Si attiva non appena viene segnalata la deposizione di un container nello slot 5, avviando un'operazione automatica di etichettatura per applicare un codice a barre identificativo sul carico. Il dispositivo trattiene logicamente il flusso operativo per un tempo fisso (durata della marcatura) e, una volta completata l'operazione, genera un messaggio di notifica. Trattandosi di un'entità integrata nello stesso nodo logico di cargoservice, questo messaggio di sblocco viene trasmesso internamente per segnalare al robot che può prelevare il container marcato e procedere verso la destinazione finale.</p>
 <pre>
 System cargoservice
 
@@ -272,32 +264,32 @@ QActor marker context ctxcargoservice{
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Stiva (Hold)</h3>
-		<p>Rappresenta un componente software passivo implementato come un oggetto Java puro (POJO) che funge da mappa logica in memoria dello stato della stiva. Modella e 
-		traccia la situazione dei quattro slot di deposito principali (slot 1-4) e dello slot 5 temporaneo. Ciascun alloggiamento viene catalogato attraverso tre stati logici ben definiti: <i>free</i> (disponibile),
+		<p>Rappresenta un componente software passivo implementato come un oggetto Java puro (POJO) che funge da mappa logica in memoria dello stato della stiva. Modella e traccia la situazione dei quattro slot di deposito principali (slot 1-4) e dello slot 5 temporaneo. Ciascun alloggiamento viene catalogato attraverso tre stati logici ben definiti: <i>free</i> (disponibile),
 		<i>reserved</i> (assegnato a una richiesta accettata, ma non ancora occupato fisicamente dal container) e <i>occupied</i> (container depositato). L'entità incapsula la logica 
-		algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata
-		una nuova richiesta di accesso. 
-		<b>HOME</b>: nei requisiti si parla di HOME come posizione iniziale in cui il DDR si trova all'interno della stanza e posizione finale del percorso lungo il perimetro della stanza.<br/>
-			Tuttavia ho bisogno di trovare un modo per formalizzare questa informazione. Per poter modellare la HOME ho bisogna prima di trovare un modo per formalizzare la stanza. 
-			Posso modellare la stanza come un rettangolo in un piano euclideo con base B e altezza H, dove entrambe le misure sono espresse in metri. Introducendo gli assi cartesiani mi viene spontaneo dire che
-			indicherò con una coppia di coordinate X e Y una posizione all'interno della stanza. Bisogna però tenere presente che il robot non è un punto, ma occuperà un'area che assumo quadrata di lato R. 
-			Posso quindi misurare la stanza in unità robotiche. Come si intuisce dell'immagine presentata di seguito, risulta immediato andare a rappresentare la stanza come una griglia, dove ogni cella sarà un'unità robotica.<br/>
-			HOME sarà quindi un'area in grado di contenere il robot, ovvero una cella predefinta all'interno della griglia che rappresenta la stanza.<br/>
-			<img src="./img/stanzaDDR.drawio.png" alt="foto" width="25%" height="25%"><br/>
+		algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata una nuova richiesta di accesso. </p>
+
+		<p><b style="color: #5638fd;">HOME</b><br>
+    	Nei requisiti si parla di HOME come posizione iniziale in cui il DDR si trova all'interno della stanza e posizione finale del percorso lungo il perimetro.<br>
+		Per formalizzare questa informazione, si sceglie di modellare la stanza come un rettangolo in un piano euclideo con base B e altezza H espresse in metri. Introducendo gli assi cartesiani, ogni posizione è indicata da una coppia di coordinate X e Y. Tuttavia, poiché il robot non è un punto ma occupa un'area che assumiamo quadrata di lato R, si rappresenta la stanza come una griglia misurata in unità robotiche, dove ogni cella corrisponde a un'unità.<br>
+		HOME viene quindi formalizzata come un'area in grado di contenere il robot, ovvero una cella predefinta all'interno della griglia che mappa la stanza.</p>
+    
+    <div style="text-align: center; margin-top: 10px;">
+        <img src="./img/stanzaDDR.drawio.png" alt="Griglia della stanza e posizione HOME" width="20%" height="20%">
+    </div>
+
 		<!-- già fornita da ddr???-->
-		</p>
+		
 		</div>
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Led</h3>
-		<p>Rappresenta un'entità software passiva di output associata a un attuatore luminoso fisico. La sua responsabilità è quella di fornire una segnalazione visiva immediata dello stato operativo del sistema verso l'esterno. Il suo comportamento è strettamente vincolato alle transizioni di stato del servizio centrale: deve attivare la modalità lampeggiante per indicare che il sistema si trova in uno stato di impegno lavorativo, mantenendo tale comportamento durante tutte le fasi di trasferimento dei container.</p>
+		<p>Rappresenta un'entità software passiva di output associata a un attuatore luminoso fisico. La sua responsabilità è quella di fornire una segnalazione visiva immediata dello stato operativo del sistema verso l'esterno. Il suo comportamento è strettamente legato alle transizioni di stato del servizio centrale: deve attivare la modalità lampeggiante per indicare che il sistema si trova in uno stato di impegno (engaged), mantenendo questo comportamento durante tutte le fasi di trasferimento dei container.</p>
 		</div>
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
 		<h3>Cargoservice</h3>
 		<p>
-			Rappresenta il software centrale responsabile della logica di business e del coordinamento. Riceve le richieste dalla IOPort. Consulta lo stato della stiva per accettare (riservando uno slot) o rifiutare il carico. Gestisce i timeout di presenza container (30 secondi)
-			e comanda il comportamento del robot e del led di segnalazione.
+			Rappresenta il software centrale responsabile della logica di business e del coordinamento del sistema. Riceve le richieste dalla IOPort, consulta lo stato della stiva per accettare la richiesta (riservando uno slot libero) o rifiutare il carico, gestisce il timeout di presenza del container (30 secondi) e comanda il comportamento del robot e del led di segnalazione.<br>
 			Formalizzazione dei messaggi:
 <pre>
 Request loadrequest : loadrequest(C)
@@ -308,74 +300,124 @@ Reply engaged : engaged(RESERVED_SLOT) for loadrequest
 		</p>
 		</div>
 
-		<p>
-			STATI DEL SISTEMA CARGO SERVICE<br>
-			Dall'analisi dei requisiti emergono i seguenti stati operativi del servizio:<br>
-			***TABELLA***<br>
-			STATO | descrizione | stato led<br>
-			idle | il sistema è pronto a ricevere nuove richieste di carico | spento<br>
-			engaged | richiesta valida e accettata. In attesa del container (timeout 30 secondi) | lampeggiante<br>
-			disengaged | timeout scaduto senza rilevamento del carico. Ritorno a idle | spento<br>
-			service working | robot in azione. movimentazione o marcatura in corso | lampeggiante<br>
-			out of service | rileva anomalia persistente sul sonar. Sistema bloccato | spento/rosso<br>
-		</p>
-	
-		<p>
-			STRUTTURA DEL SISTEMA<br>
-			Il sistema cargoservice si presenta intrinsecamente come un'architettura eterogenea e distribuita. Ciascun nodo logico identificato dai requisiti opera infatti in un dominio tecnologico differente: il nucleo applicativo centrale, il firmware a basso livello per la gestione dei sensori hardware e i servizi di simulazione spaziale tridimensionale del robot.
+		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Stati del sistema cargoservice</h3>
+		<p>Dall'analisi dei requisiti emergono i seguenti stati operativi del servizio:</p>
 
-In uno scenario caratterizzato da questa forte eterogeneità, basare l'intera infrastruttura di comunicazione esclusivamente su uno scambio di oggetti nativi Java rappresenterebbe un grave errore di progettazione. Tale approccio introdurrebbe un accoppiamento tecnologico stringente, obbligando ogni singolo nodo (compresi i microcontrollori o le interfacce web) a condividere e compilare le medesime classi Java. Questo vincolo ridurrebbe drasticamente l'estensibilità del sistema e la possibilità di aggiornare i singoli componenti in modo indipendente.
+<table style="width: 100%; border-collapse: collapse; margin: 15px 0; border: 1.5px solid #a394ff;">
+    <thead>
+        <tr style="background-color: #d9d4ff; color: #000000; text-align: center;">
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold;">STATO</th>
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold;">DESCRIZIONE</th>
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold;">STATO LED</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">idle</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Il sistema è pronto a ricevere nuove richieste di carico</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Spento</td>
+        </tr>
+        <tr style="background-color: #f7f9ff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">engaged</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Richiesta valida e accettata. In attesa del container (timeout 30 secondi)</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Lampeggiante</td>
+        </tr>
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">disengaged</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Timeout scaduto senza rilevamento del carico. Ritorno a idle</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Spento</td>
+        </tr>
+        <tr style="background-color: #f7f9ff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">service working</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Robot in azione. Movimentazione o marcatura in corso</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Lampeggiante</td>
+        </tr>
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">out of service</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Rilevata anomalia persistente sul sonar. Sistema bloccato</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Spento / Rosso</td>
+        </tr>
+    </tbody>
+</table>
+		</div>
 
-Per superare questo abstraction gap comunicativo, si adotta il metamodello Qak (Quantitative Actor Language). Qak permette di definire le interazioni tra entità a un alto livello di astrazione, formalizzando i canali di comunicazione attraverso costrutti semantici precisi e disaccoppiati dal linguaggio di programmazione finale:
+		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Struttura del sistema</h3>
+		Il sistema cargoservice si presenta come un'architettura eterogenea e distribuita. Ciascun nodo logico identificato dai requisiti opera infatti in un contesto differente: il servizio centrale, il firmware a basso livello per la gestione dei sensori hardware e il simulatore del robot.<br>
+		In uno scenario caratterizzato da questa forte eterogeneità, basare l'intera infrastruttura di comunicazione esclusivamente su uno scambio di oggetti nativi Java rappresenterebbe un errore di progettazione. Tale approccio introdurrebbe un accoppiamento tecnologico stringente, obbligando ogni singolo nodo a condividere e compilare le stesse classi Java. Questo vincolo ridurrebbe l'estensibilità del sistema e la possibilità di aggiornare i singoli componenti in modo indipendente.<br>
+		Per superare questo abstraction gap comunicativo, si adotta il metamodello <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.17" target="_blank">qak</a> (Quantitative Actor Language). Qak permette di definire le interazioni tra entità a un alto livello di astrazione, formalizzando i canali di comunicazione attraverso costrutti semantici precisi e disaccoppiati dal linguaggio di programmazione finale:
+		<ul>
+			<li><b>Request/Reply</b>: per interazioni sincrone o transazionali (es. la richiesta di carico del container).</li>
+			<li><b>Dispatch</b>: per l'invio asincrono di comandi diretti (es. i controlli inviati ai dispositivi periferici).</li>
+			<li><b>Event</b>: per la propagazione di informazioni generate da sorgenti isolate verso chiunque sia in ascolto (es. i dati telemetrici del sonar).</li>
+		</ul>
 
-- Request/Reply: per interazioni sincrone o transazionali (es. la richiesta di carico del container).
+	L'architettura iniziale prevede la scomposizione in quattro macro-nodi computazionali che, in questa prima fase di Sprint 0, verranno mappati all'interno di un unico contesto locale per motivi di semplicità e testabilità:
+	<ol>
+		<li>Nodo Core Orchestrator (cargoservice): il fulcro della logica di business.</li>
+		<li>Nodo Driver Robot (cargorobot): l'interfaccia verso le primitive di navigazione fornite dal servizio esterno RobotSmart26.</li>
+		<li>Nodo Edge Sensor (sonaradapter): l'unità per l'elaborazione dei flussi informativi provenienti dal modulo hardware (Raspberry Pi).</li>
+		<li>Nodo HMI Gateway (ioportgateway): il sottosistema che espone la Web GUI per consentire l'interazione con l'utente finale.</li>
+	</ol>
+	</div>
 
-- Dispatch: per l'invio asincrono di comandi diretti (es. i controlli inviati ai dispositivi periferici).
+	<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>ATTORI vs POJO</h3>
+		La scelta del paradigma computazionale da associare a ciascun componente del sistema è guidata dalla necessità di gestire flussi informativi concorrenti e asincroni.<br>
+		Il sistema deve essere in grado di elaborare simultaneamente stimoli esterni multipli e imprevedibili: l'utente che preme il pulsante di carico, il sonar che rileva una variazione di distanza o un'anomalia hardware, e le notifiche di fine marcatura trasmesse dallo slot5. Per evitare condizioni di stallo (deadlock) e garantire la massima reattività senza ricorrere a complesse logiche di sincronizzazione multi-threading manuale, si opta per il Modello ad Attori per tutti i componenti attivi. Un <b>attore</b> è un'entità autonoma dotata di una coda di messaggi privata (mailbox) che elabora gli eventi in modo sequenziale e non bloccante.<br>
+		Al contrario, le strutture dati puramente passive, che non possiedono un comportamento autonomo ma servono solo a incapsulare lo stato del sistema, vengono modellate come normali oggetti Java (<b>pojo</b>).<br>
+		La tabella seguente riassume la classificazione e la motivazione di ciascun componente:
+		<table style="width: 100%; border-collapse: collapse; margin: 15px 0; border: 1.5px solid #a394ff;">
+    <thead>
+        <tr style="background-color: #d9d4ff; color: #000000; text-align: center;">
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 20%;">Entità Logica</th>
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 25%;">Modello Computazionale</th>
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 55%;">Motivazione Progettuale</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">cargoservice</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Rappresenta la macchina a stati centrale dell'applicazione. Deve reagire in modo asincrono agli eventi dei sensori e coordinare le risposte per l'interfaccia utente.</td>
+        </tr>
+        <tr style="background-color: #f7f9ff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">cargorobot</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Entità dotata di ciclo di vita autonomo. Riceve le destinazioni di alto livello, monitora lo stato dello spostamento e notifica il completamento dell'azione.</td>
+        </tr>
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">sonar</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Agisce come un convertitore di protocollo (Adapter). Riceve le stringhe grezze dal microcontrollore del sonar e le traduce in eventi strutturati per il sistema.</td>
+        </tr>
+        <tr style="background-color: #f7f9ff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">ioport</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Disaccoppia la Web GUI dal resto dell'architettura. Smista i comandi del pulsante fisico verso il core e riceve le notifiche per l'aggiornamento del display.</td>
+        </tr>
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">hold</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">POJO (Plain Old Java Object)</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Struttura dati passiva che memorizza la mappa della stiva e lo stato degli slot (libero, prenotato, occupato). Viene manipolata direttamente dall'attore cargoservice.</td>
+        </tr>
+    </tbody>
+</table>
+	</div>
 
-- Event: per la propagazione di informazioni generate da sorgenti isolate verso chiunque sia in ascolto (es. i dati telemetrici del Sonar).
-
-L'architettura iniziale prevede la scomposizione in quattro macro-nodi computazionali, che in questa prima fase di Sprint 0 verranno mappati all'interno di un unico contesto virtuale locale per motivi di semplificazione e testabilità:
-
-1. Nodo Core Orchestrator (cargoservice): Il fulcro della logica di business.
-
-2. Nodo Driver Robot (cargorobot): L'interfaccia verso le primitive di navigazione fornite dal servizio esterno RobotSmart26.
-
-3. Nodo Edge Sensor (sonaradapter): L'unità deputata all'elaborazione dei flussi informativi provenienti dal modulo hardware (Raspberry Pi).
-
-4. Nodo HMI Gateway (ioportgateway): Il sottosistema che espone la Web GUI per consentire l'interazione con l'utente finale.
-		</p>
-
-		<p>
-			ATTORI vs POJO<br>
-			La scelta del paradigma computazionale da associare a ciascun componente del sistema è guidata dalla necessità di gestire flussi informativi concorrenti ed asincroni.
-
-Il sistema deve essere in grado di elaborare simultaneamente stimoli esterni multipli ed imprevedibili: l'utente che preme il pulsante di carico, il sonar che rileva una variazione di distanza o un'anomalia hardware, e le notifiche di fine marcatura trasmesse dallo slot5. Per evitare condizioni di stallo (deadlock) e garantire la massima reattività senza ricorrere a complesse e rischiose logiche di sincronizzazione multi-threading manuale, si opta per il Modello ad Attori per tutti i componenti attivi. Un attore è un'entità autonoma dotata di una coda di messaggi privata (mailbox) che elabora gli eventi in modo sequenziale e non bloccante.
-
-Al contrario, le strutture dati puramente passive, che non possiedono un comportamento autonomo ma servono solo a incapsulare lo stato del sistema, vengono modellate come normali oggetti Java (POJO).
-
-La tabella seguente riassume la classificazione e la motivazione ingegneristica di ciascun componente:
-
-***TABELLA***
-Entità Logica |	Modello Computazionale | Motivazione Progettuale
-cargoservice |	Attore Qak | Rappresenta la macchina a stati centrale dell'applicazione. Deve reagire in modo asincrono agli eventi dei sensori e coordinare le risposte per l'interfaccia utente.
-cargorobot |Attore Qak | Entità dotata di ciclo di vita autonomo. Riceve le destinazioni di alto livello, monitora lo stato dello spostamento e notifica il completamento dell'azione.
-sonar | Attore Qak | Agisce come un convertitore di protocollo (Adapter). Riceve le stringhe grezze dal microcontrollore del Sonar e le traduce in eventi strutturati per il sistema.
-ioport | Attore Qak	| Disaccoppia la Web GUI dal resto dell'architettura. Smista i comandi del pulsante fisico verso il core e riceve le notifiche per l'aggiornamento del display.
-hold | POJO (Plain Old Java Object) | Struttura dati passiva che memorizza la mappa della stiva e lo stato degli slot (libero, prenotato, occupato). Viene manipolata direttamente dall'attore cargoservice.
-		</p>
-
-		
-</p>
 <p>
 	<h2>TEST PLAN</h2>
 	<!-- USER STORIES: dire cosa si aspetta che l'utente finale veda (es preme il bottone quando libero, già occupato, out of service)-->
-	 Il piano di test per questa fase iniziale di Sprint 0 ha l'obiettivo di verificare formalmente la correttezza logica dei componenti isolabili del sistema prima di procedere allo sviluppo dell'architettura distribuita. 
-	 Nello specifico, l'attenzione è focalizzata sulla convalida della struttura dati Hold, in quanto rappresenta il nucleo informativo su cui si basano le decisioni di accettazione o rifiuto delle richieste di carico da parte dell'orchestratore.
+	 Il piano di test per questa fase iniziale di Sprint 0 ha l'obiettivo di verificare formalmente la correttezza logica dei componenti isolabili del sistema prima di procedere allo sviluppo dell'architettura distribuita. <br>
+	 Nello specifico, l'attenzione è focalizzata sulla convalida della struttura dati Hold, in quanto rappresenta il nucleo informativo su cui si basano le decisioni di accettazione o rifiuto delle richieste di carico da parte dell'orchestratore.<br>
 	 I test automatizzati sono progettati per validare i seguenti scenari operativi derivati direttamente dalle specifiche dei requisiti:
-	 - Verifica di Allocazione Iniziale: Accertarsi che a stiva vuota il sistema assegni lo slot corretto seguendo rigidamente l'ordine di sequenza.
-	 - Gestione della Saturazione: Verificare che lo stato della stiva commuti correttamente in "piena" una volta occupati tutti gli spazi disponibili.  
-	 - Protezione da Sovrallocazione: Garantire che ogni tentativo di prenotazione fallisca (ritornando un valore nullo) nel momento in cui la stiva ha esaurito la propria capacità.  
-	 - Inibizione di Doppia Prenotazione: Assicurare che il sistema gestisca una sola transazione attiva alla volta, impedendo l'assegnazione simultanea di slot multipli prima che il carico precedente sia stato effettivamente confermato.  
+	 <ul>
+		<li>verifica di allocazione iniziale: accertarsi che a stiva vuota il sistema assegni lo slot corretto seguendo rigidamente l'ordine di sequenza.</li>
+		<li>gestione della saturazione: verificare che lo stato della stiva commuti correttamente in "piena" una volta occupati tutti gli spazi disponibili. </li>
+		<li>protezione da sovrallocazione: garantire che ogni tentativo di prenotazione fallisca (ritornando un valore nullo) nel momento in cui la stiva ha esaurito la propria capacità.</li>
+		<li>inibizione di doppia prenotazione: assicurare che il sistema gestisca una sola transazione attiva alla volta, impedendo l'assegnazione simultanea di slot multipli prima che il carico precedente sia stato effettivamente confermato. </li>
+	 </ul>
 	 Di seguito viene riportata la suite di test funzionali per il componente Hold:
 	<pre>
 class HoldTest {
@@ -421,19 +463,19 @@ class HoldTest {
 </p>	
 
 <p>
-	DEFINIZIONE DELLO SPRINT1<br>
-	A conclusione di questa fase preliminare di analisi (Sprint 0), viene delineato il perimetro d'azione per il primo incremento di sviluppo (Sprint 1). 
-	L'obiettivo strategico è isolare e implementare il nucleo algoritmico e comportamentale del sistema, rimandando a un secondo momento l'integrazione con i dispositivi hardware e i sistemi di guida del robot.  
-	Requisiti Selezionati 
-	L'attività dello Sprint 1 si focalizzerà esclusivamente sul seguente sottoinsieme di specifiche:
-	- Core Business & Validazione: Ricezione dei messaggi di richiesta di carico, interazione con la struttura dati interna Hold per la verifica degli spazi disponibili e generazione delle risposte di accettazione o rifiuto (retrylater o stiva piena).  
-	- Macchina a Stati Astratta: Implementazione e transizione guidata dai timer per gli stati logici di Idle, Engaged e il successivo timeout di 30 secondi che conduce allo stato Disengaged.  
-	- Segnalazione ed Interfaccia Logica: Emissione dei comandi astratti per l'attivazione/disattivazione del lampeggio del LED e per l'invio dei messaggi di testo verso l'interfaccia utente.  
-	Motivazione Ingegneristica
-	La scelta di questo specifico sottoinsieme permette di consolidare e testare l'intera logica di controllo e di coordinamento del servizio senza introdurre dipendenze critiche o blocchi tecnologici dovuti alla cinematica del cargorobot o alla volatilità dei flussi di telemetria del Sonar. 
-	Validare la corretta evoluzione degli stati interni in un ambiente prototipale controllato garantisce una base architetturale solida prima di affrontare l'interazione distribuita.  
-	Goal dello Sprint 1
-	Sviluppare un prototipo software funzionante incentrato sull'entità coordinatrice cargoservice. Il sistema dovrà essere in grado di elaborare stimoli di input fittizi (che simulano la pressione del pulsante della IOPort), aggiornare coerentemente lo stato di occupazione degli slot della stiva e governare i cicli di temporizzazione per il disimpegno del sistema.
+	<h2>DEFINIZIONE DELLO SPRINT1</h2>
+	A conclusione di questa prima fase di analisi (Sprint 0), viene delineato il perimetro d'azione per il prossimo incremento (Sprint 1). <br>
+	L'obiettivo è concentrarsi sulla logica centrale e sul comportamento del sistema, lasciando a un secondo momento l'integrazione con i dispositivi fisici e i movimenti del robot.  <br>
+	<b>Requisiti Selezionati </b><br>
+	Lo Sprint 1 si focalizzerà esclusivamente sul seguente sottoinsieme di specifiche:
+	<ul>
+		<li>ricezione delle richieste di carico, controllo della stiva tramite la struttura dati interna Hold e generazione delle risposte di accettazione (engaged) o rifiuto (retrylater o reject). </li>
+		<li>gestione delle transizioni tra gli stati logici di idle ed engaged, incluso il controllo del timer di 30 secondi che porta allo stato disengaged in caso di mancato arrivo del container.</li>
+		<li>emissione dei comandi per accendere/spegnere il lampeggio del LED e dei messaggi di testo per l'aggiornamento dello schermo.</li>
+	</ul>     
+	La scelta di questo specifico sottoinsieme permette di testare l'intera logica di controllo del servizio senza dipendere dai movimenti del cargorobot o dai dati del sonar. Verificare che gli stati interni cambino correttamente all'inizio garantisce una base solida prima di passare al sistema distribuito reale.  <br>
+	<b>Goal dello Sprint 1</b><br>
+	Sviluppare un prototipo software funzionante incentrato sul componente cargoservice. Il sistema dovrà essere in grado di elaborare stimoli di input fittizi (che simulano la pressione del pulsante della IOPort), aggiornare coerentemente lo stato di occupazione degli slot della stiva e governare i cicli di temporizzazione per il disimpegno del sistema.
 	<!-- aggiungere i nomi dei messaggi definiti -->
 </p>
 </div>
@@ -471,35 +513,40 @@ class HoldTest {
 
 <div style="background-color: rgba(86, 56, 253, 0.9); color: white; padding: 30px; font-family: sans-serif; margin-top: 50px; border-radius: 8px;">
     
-    <!-- Titolo principale trasformato in testo semplice centrato -->
-    <div style="text-align: center; margin-bottom: 30px; color: #ffffff; font-size: 1.3em; font-weight: bold;">
+    <!-- Titolo principale centrato -->
+    <div style="text-align: center; color: #ffffff; font-size: 1.3em; font-weight: bold;">
         Team di Sviluppo
     </div>
     
+    <!-- Link unico alla Git Repository del Progetto -->
+    <div style="text-align: center; margin-top: 10px; margin-bottom: 30px;">
+        <a href="https://github.com/ariannabuffoni/TF2026.git" target="_blank" style="color: #ffff00; text-decoration: underline; font-size: 1em; font-weight: bold;">
+            💻 GitHub Project Repository
+        </a>
+    </div>
+    
+    <!-- Griglia dei partecipanti (ora mostra solo foto, nome ed email) -->
     <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; text-align: center;">
         
         <!-- Partecipante 1 -->
         <div style="flex: 1; min-width: 200px; max-width: 250px;">
             <img src="./img/foto_ari.jpg" alt="Foto Arianna" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
             <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Arianna Buffoni</div>
-            <div style="font-size: 0.9em; margin: 5px 0 10px 0; color: #ffffff;">arianna.buffoni@studio.unibo.it</div>
-            <a href="https://github.com/ariannabuffoni/IngegneriaSistemiSoftware2026.git" target="_blank" style="color: #ffff00; text-decoration: underline; font-size: 0.85em; word-break: break-all; font-weight: bold;">💻 GitHub Repo</a>
+            <div style="font-size: 0.9em; color: #ffffff;">arianna.buffoni@studio.unibo.it</div>
         </div>
 
         <!-- Partecipante 2 -->
         <div style="flex: 1; min-width: 200px; max-width: 250px;">
             <img src="./img/foto_desy.jpeg" alt="Foto Desirée" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
             <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Desirée Pellegrini</div>
-            <div style="font-size: 0.9em; margin: 5px 0 10px 0; color: #ffffff;">desiree.pellegrini@studio.unibo.it</div>
-            <a href="https://github.com/desypellegrini/IngegneriaSistemiSoftware2026" target="_blank" style="color: #ffff00; text-decoration: underline; font-size: 0.85em; word-break: break-all; font-weight: bold;">💻 GitHub Repo</a>
+            <div style="font-size: 0.9em; color: #ffffff;">desiree.pellegrini@studio.unibo.it</div>
         </div>
 
         <!-- Partecipante 3 -->
         <div style="flex: 1; min-width: 200px; max-width: 250px;">
             <img src="./img/foto_gian.jpeg" alt="Foto Gianluca" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
             <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Gianluca Varisco</div>
-            <div style="font-size: 0.9em; margin: 5px 0 10px 0; color: #ffffff;">gianluca.varisco@studio.unibo.it</div>
-            <a href="https://github.com/gianluca-varisco/issLab2026" target="_blank" style="color: #ffff00; text-decoration: underline; font-size: 0.85em; word-break: break-all; font-weight: bold;">💻 GitHub Repo</a>
+            <div style="font-size: 0.9em; color: #ffffff;">gianluca.varisco@studio.unibo.it</div>
         </div>
 
     </div>
