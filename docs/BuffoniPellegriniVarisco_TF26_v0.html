@@ -281,9 +281,9 @@ QActor marker context ctxcargoservice{
 		algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata una nuova richiesta di accesso. </p>
 
 		<p><b style="color: #5638fd;">HOME</b><br>
-    	La HOME rappresenta la posizione iniziale in cui il DDR si trova all'interno della stanza e posizione finale del percorso lungo il perimetro.<br>
-		Per formalizzare questa informazione, si sceglie di modellare la stanza come un rettangolo in un piano euclideo con base B e altezza H espresse in metri. Introducendo gli assi cartesiani, ogni posizione è indicata da una coppia di coordinate X e Y. Tuttavia, poiché il robot non è un punto ma occupa un'area che assumiamo quadrata di lato R, si rappresenta la stanza come una griglia misurata in unità robotiche, dove ogni cella corrisponde a un'unità.<br>
-		HOME viene quindi formalizzata come un'area in grado di contenere il robot, ovvero una cella predefinta all'interno della griglia che mappa la stanza.</p>
+    	La HOME rappresenta la posizione iniziale in cui il DDR si trova all'interno della stiva e posizione finale del percorso lungo il perimetro.<br>
+		Per formalizzare questa informazione, si sceglie di modellare la stiva come un rettangolo in un piano euclideo con base B e altezza H espresse in metri. Introducendo gli assi cartesiani, ogni posizione è indicata da una coppia di coordinate X e Y. Tuttavia, poiché il robot non è un punto ma occupa un'area che assumiamo quadrata di lato R, si rappresenta la stiva come una griglia misurata in unità robotiche, dove ogni cella corrisponde a un'unità.<br>
+		HOME viene quindi formalizzata come un'area in grado di contenere il robot, ovvero una cella predefinta all'interno della griglia che mappa la stiva.</p>
     
     	<div style="text-align: center; margin-top: 10px;">
         	<img src="./img/stanzaDDR.drawio.png" alt="Griglia della stanza e posizione HOME" width="20%" height="20%">
@@ -436,6 +436,11 @@ QActor cargoservice context ctxcargoservice{
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">Disaccoppia la Web GUI dal resto dell'architettura. Smista i comandi del pulsante fisico verso il core e riceve le notifiche per l'aggiornamento del display.</td>
         </tr>
+		<tr style="background-color: #f7f9ff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">marker</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Dispositivo attivo con ciclo di vita autonomo. Reagisce all'arrivo del carico nello slot 5, gestisce la durata della marcatura e notifica in modo asincrono il completamento al cargorobot (markingDone), evitando di bloccare l'orchestrazione principale</td>
+        </tr>
         <tr style="background-color: #ffffff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">hold</td>
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">POJO (Plain Old Java Object)</td>
@@ -547,10 +552,9 @@ class HoldTest {
 		<li>gestione delle transizioni tra gli stati logici di idle ed engaged, incluso il controllo del timer di 30 secondi che porta allo stato disengaged in caso di mancato arrivo del container.</li>
 		<li>emissione dei comandi per accendere/spegnere il lampeggio del LED e dei messaggi di testo per l'aggiornamento dello schermo.</li>
 	</ul>     
-	La scelta di questo specifico sottoinsieme permette di testare l'intera logica di controllo del servizio senza dipendere dai movimenti del cargorobot o dai dati del sonar. Verificare che gli stati interni cambino correttamente all'inizio garantisce una base solida prima di passare al sistema distribuito reale.  <br>
+	La scelta di questo specifico sottoinsieme permette di testare l'intera logica di controllo del servizio senza dipendere dai movimenti del cargorobot o dai dati del sonar. Verificare che gli stati interni cambino correttamente all'inizio garantisce una base solida prima di passare al sistema distribuito reale. <br>
 	<b>Goal dello Sprint 1</b><br>
-	Sviluppare un prototipo software funzionante incentrato sul componente cargoservice. Il sistema dovrà essere in grado di elaborare stimoli di input fittizi (che simulano la pressione del pulsante della IOPort), aggiornare coerentemente lo stato di occupazione degli slot della stiva e governare i cicli di temporizzazione per il disimpegno del sistema.
-	<!-- aggiungere i nomi dei messaggi definiti -->
+	Sviluppare un prototipo software funzionante incentrato sul componente cargoservice. Il sistema dovrà essere in grado di elaborare stimoli di input fittizi (che simulano la pressione del pulsante della IOPort, <i>loadrequest</i>), aggiornare coerentemente lo stato di occupazione degli slot della stiva (<i>hold_status</i>) e governare i cicli di temporizzazione per il disimpegno del sistema.
 </p>
 </div>
 
