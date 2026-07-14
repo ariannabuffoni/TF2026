@@ -126,7 +126,7 @@ containers and a slot named <b>slot5</b>.
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>IOPort</h3>
-		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI. Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core. 
+		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI. Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core ed è modellato come un <a href="#actor_vs_pojo">attore</a>. 
 			<ul>
 				<li>Il suo componente di input (pushbotton) è un elemento reattivo che cattura l'interazione del cliente (pressione del pulsante) e la traduce in una richiesta formale di carico (loadrequest) indirizzata verso il sistema</li>
 				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e i messaggi operativi critici ("Service working" o "Out of service").</li>
@@ -145,7 +145,7 @@ msg(outOfService, dispatch, cargoservice, ioport, CAUSE, N)
 		
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Sensore / Sonar</h3>
-		<p>Si tratta di un'entità software proattiva che rappresenta un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento continuo dello spazio antistante, calcolando la distanza D dall'ostacolo più vicino. Questo software di basso livello trasmette i dati grezzi sottoforma di stringhe
+		<p>Si tratta di un'entità software proattiva (<a href="#actor_vs_pojo">attore</a>) che rappresenta un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento continuo dello spazio antistante, calcolando la distanza D dall'ostacolo più vicino. Questo software di basso livello trasmette i dati grezzi sottoforma di stringhe
 		formattate come distance(DIRECTION, D) per consentire la verifica dei vincoli temporali e di soglia del sistema:</p> 
 			<ul>
 				<li>se una misurazione D &lt;
@@ -240,7 +240,7 @@ QActor sonar context ctxcargoservice {
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Dispositivo Marker (Slot 5)</h3>
-		<p>Si tratta di un dispositivo di scansione e identificazione localizzato in corrispondenza dello slot 5, l'area riservata alla sosta temporanea.<br>
+		<p>Si tratta di un dispositivo di scansione e identificazione localizzato in corrispondenza dello slot 5, modellato come <a href="#actor_vs_pojo">attore</a>, l'area riservata alla sosta temporanea.<br>
 		Si attiva non appena viene segnalata la deposizione di un container nello slot 5, avviando un'operazione automatica di etichettatura per applicare un codice a barre identificativo sul carico. Il dispositivo trattiene logicamente il flusso operativo per un tempo fisso (durata della marcatura) e, una volta completata l'operazione, genera un messaggio di notifica. Trattandosi di un'entità integrata nello stesso nodo logico di cargoservice, questo messaggio di sblocco viene trasmesso internamente per segnalare al robot che può prelevare il container marcato e procedere verso la destinazione finale.</p>
 <pre>
 System cargoservice
@@ -276,7 +276,7 @@ QActor marker context ctxcargoservice{
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Stiva (Hold)</h3>
-		<p>Rappresenta un componente software passivo implementato come un oggetto Java puro (POJO) che funge da mappa logica in memoria dello stato della stiva. Modella e traccia la situazione dei quattro slot di deposito principali (slot 1-4) e dello slot 5 temporaneo. Ciascun alloggiamento viene catalogato attraverso tre stati logici ben definiti: <i>free</i> (disponibile),
+		<p>Rappresenta un componente software passivo implementato come un oggetto Java puro (<a href="#actor_vs_pojo">POJO</a>) che funge da mappa logica in memoria dello stato della stiva. Modella e traccia la situazione dei quattro slot di deposito principali (slot 1-4) e dello slot 5 temporaneo. Ciascun alloggiamento viene catalogato attraverso tre stati logici ben definiti: <i>free</i> (disponibile),
 		<i>reserved</i> (assegnato a una richiesta accettata, ma non ancora occupato fisicamente dal container) e <i>occupied</i> (container depositato). L'entità incapsula la logica 
 		algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata una nuova richiesta di accesso. </p>
 
@@ -303,7 +303,7 @@ QActor marker context ctxcargoservice{
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
 		<h3>Cargoservice</h3>
 		<p>
-			Rappresenta il software centrale responsabile della logica di business e del coordinamento del sistema. Riceve le richieste dalla IOPort, consulta lo stato della stiva per accettare la richiesta (riservando uno slot libero) o rifiutare il carico, gestisce il timeout di presenza del container (30 secondi) e comanda il comportamento del robot e del led di segnalazione.<br>
+			Rappresenta il software centrale responsabile della logica di business e del coordinamento del sistema ed è modellato come <a href="#actor_vs_pojo">attore</a>. Riceve le richieste dalla IOPort, consulta lo stato della stiva per accettare la richiesta (riservando uno slot libero) o rifiutare il carico, gestisce il timeout di presenza del container (30 secondi) e comanda il comportamento del robot e del led di segnalazione.<br>
 			Formalizzazione dei messaggi:
 <pre>
 System cargoservice
@@ -394,10 +394,10 @@ QActor cargoservice context ctxcargoservice{
 
 	L'architettura iniziale prevede la scomposizione in quattro macro-nodi computazionali che, in questa prima fase di Sprint 0, verranno mappati all'interno di un unico contesto locale per motivi di semplicità e testabilità:
 	<ol>
-		<li>Nodo Core Orchestrator (cargoservice): il fulcro della logica di business.</li>
+		<li>Nodo Orchestratore (cargoservice): il fulcro della logica di business.</li>
 		<li>Nodo Driver Robot (cargorobot): l'interfaccia verso le primitive di navigazione fornite dal servizio esterno RobotSmart26.</li>
-		<li>Nodo Edge Sensor (sonaradapter): l'unità per l'elaborazione dei flussi informativi provenienti dal modulo hardware (Raspberry Pi).</li>
-		<li>Nodo HMI Gateway (ioportgateway): il sottosistema che espone la Web GUI per consentire l'interazione con l'utente finale.</li>
+		<li>Nodo Sensore (sonar): l'unità per l'elaborazione dei flussi informativi provenienti dal modulo hardware (Raspberry Pi).</li>
+		<li>Nodo Gateway (ioport): il sottosistema che espone la Web GUI per consentire l'interazione con l'utente finale.</li>
 	</ol>
 	</div>
 
