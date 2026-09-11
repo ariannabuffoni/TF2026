@@ -1,0 +1,74 @@
+System sprint0
+
+/*
+ * MODELLO DELL'ANALISTA
+ */
+ 
+// -----definizione dei messaggi-----
+Event sonar : distance(D)
+
+Dispatch storeContainer : storeContainer(C)
+Dispatch markingDone : markingDone(C)
+
+Request loadrequest : loadrequest(C)
+Reply retrylater : retrylater(CAUSE) for loadrequest
+Reply reject : reject(R) for loadrequest
+Reply engaged : engaged(RESERVED_SLOT) for loadrequest
+
+// -----definizione del contesto-----
+Context ctxcargoservice ip [host="localhost" port=8120]
+
+// -----definizione degli attori-----
+QActor sonar context ctxcargoservice {
+	[# 
+		var D = 0
+		var Timer = 1000L
+	 #]
+	State s0 initial {
+		println("$name | start") color green
+	}
+	Goto rileva_distanza
+	
+	State rileva_distanza{
+		// rilevamento della distanza D (in metri)
+		emit sonar : distance(D)
+	}
+	Transition t0 
+		whenTimeVar Timer -> rileva_distanza
+}
+
+QActor marker context ctxcargoservice{
+	State s0 initial{
+		println("$name | starts ") color blue
+	}
+	Transition t0 
+		whenMsg storeContainer -> marking
+
+	State marking{
+		// logica di marcatura del container
+		forward cargorobot -m markingDone : markingDone(0)
+	}
+	Transition t0 
+		whenMsg storeContainer -> marking
+}
+
+// attore che gestione movimenti del robot
+QActor cargorobot context ctxcargoservice{
+	State s0 initial{
+		println("$name | starts ") color black
+	}
+}
+
+QActor cargoservice context ctxcargoservice{
+	State s0 initial{
+		println("$name | starts ") color magenta
+	}
+	Transition t0 
+		whenRequest loadrequest -> handleLoadRequest
+
+	State handleLoadRequest{
+		// logica di gestione richieste
+	}
+	Transition t0 
+		whenRequest loadrequest -> handleLoadRequest
+}

@@ -327,13 +327,13 @@ QActor cargoservice context ctxcargoservice{
 		println("$name | starts ") color magenta
 	}
 	Transition t0 
-		whenMsg loadrequest -> handleLoadRequest
+		whenRequest loadrequest -> handleLoadRequest
 
 	State handleLoadRequest{
 		// logica di gestione richieste
 	}
 	Transition t0 
-		whenMsg loadrequest -> handleLoadRequest
+		whenRequest loadrequest -> handleLoadRequest
 }
 </pre>
 		</p>
