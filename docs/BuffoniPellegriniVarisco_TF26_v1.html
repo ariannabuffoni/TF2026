@@ -1,0 +1,486 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+
+<link rel="stylesheet" type="text/css" href="css/mystyle.css">
+<!--
+    <script type="text/javascript" src="../css/issStyle.js"></script>
+-->
+    
+</head>
+   
+<title>TF26_v1</title></head>
+    
+
+<body>
+<div id="top">
+<h1>TF26 - Sprint1</h1>
+</div>  
+
+<div class="body">
+<p><b>Goal Sprint1: </b> 
+Sviluppare un prototipo software funzionante incentrato sul componente cargoservice. Il sistema dovrà essere in grado di elaborare stimoli di input fittizi 
+(che simulano la pressione del pulsante della IOPort, <i>loadrequest</i>), aggiornare coerentemente lo stato di occupazione degli slot della stiva (<i>hold_status</i>)
+e governare i cicli di temporizzazione per il disimpegno del sistema.
+</p>
+
+
+<h2>Problem analysis</h2>
+<p>
+	<b>Individuazione dei Componenti del Sottosistema</b><br/>
+	In questa fase analizziamo la natura computazionale dei componenti coinvolti nel perimetro dello Sprint 1:
+	<ul>
+		<li>
+			cargoservice: come evidenziato nello Sprint 0, è il cuore della logica di business e governa una macchina a stati complessa. Non può essere un componente passivo (POJO) perché deve essere reattivo a messaggi asincroni (la richiesta dell'utente) e al contempo proattivo nella gestione dei vincoli temporali (deve svegliarsi autonomamente allo scadere del timeout di 30 secondi senza sollecitazioni esterne). Viene quindi modellato come QActor.
+		</li>
+		<li>
+			ioport: è l'entità di frontiera che interfaccia il mondo esterno (utente/browser) con il core applicativo. Gestisce stimoli concorrenti bidirezionali: cattura l'azione dell'utente (click sul pulsante) per inoltrare la richiesta a cargoservice, e riceve gli aggiornamenti di stato per notificarli all'interfaccia. Anch'esso deve essere modellato come QActor.
+		</li>
+		<li>
+			Hold: rappresenta la mappa logica degli alloggiamenti. Poiché non possiede un thread di controllo autonomo né reagisce spontaneamente a stimoli esterni, ma viene interrogata e manipolata in modo sequenziale unicamente dall'attore cargoservice, è opportunamente modellata come un POJO Java puro.
+		</li>
+	</ul>
+</p>
+<p>
+	<b>Scelta della Tecnologia per l'IOPort (Web GUI vs Dispositivo Dedicato)</b><br/>
+	Come già discusso nei requisiti, l'IOPort deve presentare un'interfaccia per il cliente finale con un display informativo e un pulsante di richiesta.
+	Valutando le alternative:
+	<ol>
+		<li>
+			Terminale da riga di comando / Mock testuale: semplice da realizzare ma inadatto a rappresentare l'interazione reale richiesta dal committente (utente finale).
+		</li>
+		<li>
+			Pannello embedded dedicato: introduce forti vincoli hardware e vincola l'accesso a una singola postazione fisica.
+		</li>
+		<li>
+			WebGUI accessibile via Browser: opzione preferenziale. Permette di simulare realisticamente sia l'interfaccia cliente sia eventuali controlli di test (es. simulatore dello stato del sensore), riduce i costi infrastrutturali e consente una visualizzazione contemporanea e distribuita dello stato del sistema.
+		</li>
+	</ol>
+</p>
+<p>
+	<b>Il Divario Tecnologico tra Browser e QAk: Perché non basta TCP nativo e perché si esclude il Polling</b><br/>
+	L'adozione di un'interfaccia Web introduce un disallineamento (abstraction & technology gap) rispetto all'ecosistema QAk:
+	<ul>
+		<li>
+			Limitazioni del Browser: Il runtime QAk comunica tramite socket TCP scambiandosi messaggi formattati secondo la sintassi proprietaria IApplMessage. I browser web, per motivi di sicurezza legati alle policy di sandboxing, non consentono al codice JavaScript di aprire socket TCP/IP grezzi.
+		</li>
+		<li>
+			Scarto del Polling HTTP: Un approccio basato su richieste periodiche (HTTP GET ogni N secondi) introdurrebbe latenza non deterministica nella notifica del cambio di stato (es. notifica immediata di timeout o accettazione richiesta) e genererebbe un traffico di rete inutile e scalabile negativamente all'aumentare dei client connessi.
+		</li>
+		<li>
+			Scelta di WebSocket: Si adotta il protocollo WebSocket. Esso fornisce un canale full-duplex su una singola connessione TCP persistente, permettendo al server di inviare aggiornamenti push asincroni in tempo reale alla GUI non appena lo stato cambia, senza richiedere componenti middleware esterni (come un broker MQTT) che appesantirebbero inutilmente l'architettura di questo sprint.
+		</li>
+	</ul>
+</p>
+<p>
+	<b>Il Componente Ponte (IOPortWsAdapter) e la Concorrenza tra Thread</b><br/>
+	La gestione del socket WebSocket introduce una criticità architetturale legata al modello a memoria isolata degli attori:
+	<ul>
+		<li>
+			La libreria del server web/WebSocket (es. Javalin) elabora le connessioni e i messaggi in arrivo su un proprio pool di thread worker, distinto dal thread su cui gira il ciclo di vita (loop di ricezione) dell'attore ioport.
+		</li>
+		<li>
+			Nel modello QAk, nessun thread esterno può invocare direttamente metodi interni di un attore per mutarne lo stato, pena la violazione delle garanzie di thread-safety e la corruzione della mailbox.
+		</li>
+		<li>
+			Soluzione: Si introduce una classe ausiliaria Java/Kotlin, IOPortWsAdapter, di proprietà esclusiva di ioport. L'adapter riceve gli eventi dal thread WebSocket e, per consegnarli all'attore, utilizza l'unico canale lecito e thread-safe previsto dal runtime: l'invocazione di sendMsgToMyself(dispatch).
+		</li>
+	</ul>
+</p>
+<p>
+	<b>2.5 Formato dei Messaggi e Scambio Dati</b><br/>
+	Mentre tra gli attori ioport e cargoservice si impiega la semantica nativa QAk (Request/Reply e Dispatch), sul canale WebSocket verso il browser si sceglie un formato JSON minimale:
+	<ul>
+		<li>
+			Browser -> Server: { "type": "pushButton" } oppure { "type": "setOccupied", "value": true }.
+		</li>
+		<li>
+			Server -> Browser: { "type": "update", "state": "ENGAGED", "hold": "1/4", "msg": "Richiesta accettata" }.
+		</li>
+		<li>
+			L'adapter si occupa della serializzazione e deserializzazione, mantenendo il frontend completamente agnostico rispetto alla sintassi IApplMessage di QAk.
+		</li>
+	</ul>
+</p>
+<p>
+	<b>2.6 Semplificazione a Singolo Contesto per lo Sprint 1</b><br/>
+	In conformità con il piano evolutivo definito nello Sprint 0, per lo Sprint 1 entrambi gli attori (cargoservice e ioport) risiedono all'interno di un unico contesto logico locale (ctxcargoservice). Questo consente di concentrare la validazione sulla corretta dinamica degli stati, sulla gestione del tempo e sullo scambio messaggi, rimandando la distribuzione fisica su host e contesti remoti distinti allo Sprint 2.
+</p>
+
+<h2>Test plans</h2> 
+<p>
+	I test plan per lo Sprint 1 hanno lo scopo di verificare in modo riproducibile e formale che la sequenza di stimoli produca esattamente le transizioni e le emissioni di messaggi previste dai requisiti.
+
+	***TABELLA***
+</p>
+
+
+<h2>Project</h2> 
+<p>
+Nello spirito del corso, l'architettura logica e il comportamento dinamico del prototipo sono formalizzati primariamente nel modello eseguibile sprint1.qak, da cui il compilatore/generatore del runtime QAk produce il codice sorgente Kotlin degli attori.
+<br/>
+I componenti accessori a supporto (la struttura dati Hold, l'adapter di rete IOPortWsAdapter e le risorse web della GUI) sono confinati in classi di utilità Java/Kotlin e file statici ben isolati.
+</p>
+<p>
+	<b>Definizione dei Messaggi e del Contesto (sprint1.qak)</b>
+	I messaggi applicativi scambiati tra le entità sono così formalizzati:
+	<pre>
+System sprint1
+
+// --- Interazione Request/Reply tra ioport e cargoservice ---
+Request loadrequest  : loadrequest(OCCUPIED)
+Reply   loadaccepted : loadaccepted(SLOT, HOLD) for loadrequest
+Reply   loadrejected : loadrejected(REASON, HOLD) for loadrequest
+
+// --- Messaggi interni di comando e notifica ---
+Dispatch pushButton    : pushButton(N)
+Dispatch setOccupied   : setOccupied(FLAG)
+Dispatch updateDisplay : updateDisplay(STATE, HOLD, MSG)
+
+// --- Contesto unico per lo Sprint 1 ---
+Context ctxcargoservice ip [host="localhost" port=8050]
+	</pre>
+	<ul>
+		<li>
+			loadrequest / loadaccepted / loadrejected: definiscono il protocollo transazionale request-reply con cui ioport interroga cargoservice.
+		</li>
+		<li>
+			pushButton / setOccupied: sono messaggi asincroni (dispatch) iniettati dall'adapter verso ioport per notificare le azioni dell'utente sulla Web GUI.
+		</li>
+		<li>
+			updateDisplay: dispatch con cui cargoservice notifica autonomamente a ioport un cambio di stato da visualizzare sul display (es. a seguito dello scadere del timeout).
+		</li>
+	</ul>
+</p>
+<p>
+	<b>4.2 L'attore cargoservice</b><br/>
+	L'attore gestisce la logica di business e governa il timeout di 30 secondi per la transizione tra gli stati idle, engaged e disengaged. Incapsula l'oggetto Hold mediante la direttiva withobj.
+	<pre>
+QActor cargoservice context ctxcargoservice {
+    [# 
+        var Slot = -1
+        var HoldStatus = ""
+    #]
+    withobj hold using "utils.Hold()"
+
+    State idle initial {
+        println("$name | pronto in attesa di richieste (IDLE)") color magenta
+    }
+    Transition t0 whenRequest loadrequest -> handleRequest
+
+    State handleRequest {
+        onMsg(loadrequest : loadrequest(OCCUPIED)) {
+            [# val isOcc = payloadArg(0).toBoolean() #]
+            if [# isOcc #] {
+                [# HoldStatus = hold.getStatusString() #]
+                replyTo loadrequest with loadrejected : loadrejected(retrylater, $HoldStatus)
+            } else {
+                [# Slot = hold.reserveFirstFree() #]
+                [# HoldStatus = hold.getStatusString() #]
+                if [# Slot != -1 #] {
+                    replyTo loadrequest with loadaccepted : loadaccepted($Slot, $HoldStatus)
+                } else {
+                    replyTo loadrequest with loadrejected : loadrejected(full, $HoldStatus)
+                }
+            }
+        }
+    }
+    Goto engaged if [# Slot != -1 && !payloadArg(0).toBoolean() #] else idle
+
+    State engaged {
+        println("$name | ENGAGED: attesa posizionamento carico (30s)") color magenta
+        // Simulazione LED: stato lampeggiante
+        println("LED Status -> BLINKING") color yellow
+    }
+    Transition t1 whenTime 30000 -> disengaged
+
+    State disengaged {
+        println("$name | Timeout 30s scaduto: rilascio slot $Slot e ritorno in IDLE") color red
+        [# 
+            hold.releaseReserved(Slot)
+            Slot = -1
+            HoldStatus = hold.getStatusString() 
+        #]
+        // Spegnimento LED (simulato)
+        println("LED Status -> OFF") color yellow
+        
+        // Notifica autonoma verso ioport
+        forward ioport -m updateDisplay : updateDisplay(IDLE, $HoldStatus, "Timeout scaduto: slot liberato")
+    }
+    Goto idle
+}
+	</pre>
+	<i>Osservazione sul Timeout:</i> La transizione temporizzata Transition t1 whenTime 30000 -> disengaged è governata interamente dal runtime QAk. Il disimpegno (disengaged) è un'iniziativa autonoma di cargoservice che propaga una notifica push (updateDisplay) verso ioport senza che quest'ultimo l'abbia esplicitamente richiesta.
+</p>
+<p>
+	<b>L'attore ioport</b><br/>
+	L'attore funge da mediatore: reagisce agli stimoli provenienti dalla Web GUI tramite l'adapter, invia la richiesta a cargoservice, e riceve le notifiche di aggiornamento.
+	<pre>
+QActor ioport context ctxcargoservice {
+    [# 
+        var isOccupied = false
+        var wsPort = 7070
+    #]
+
+    State s0 initial {
+        println("$name | Inizializzazione IOPortWsAdapter sulla porta $wsPort") color green
+        [# val adapter = utils.IOPortWsAdapter(this, wsPort) #]
+    }
+    Goto idle
+
+    State idle {
+        println("$name | pronto in ascolto") color green
+    }
+    Transition t0 
+        whenMsg pushButton    -> handleButtonPressed
+        whenMsg setOccupied   -> handleSensorChange
+        whenMsg updateDisplay -> handleDisplayUpdate
+
+    State handleSensorChange {
+        onMsg(setOccupied : setOccupied(FLAG)) {
+            [# isOccupied = payloadArg(0).toBoolean() #]
+            println("$name | aggiornamento stato sensore: occupato=$isOccupied") color green
+        }
+    }
+    Goto idle
+
+    State handleButtonPressed {
+        println("$name | Pulsante premuto: invio loadrequest(isOccupied=$isOccupied)") color green
+        request cargoservice -m loadrequest : loadrequest($isOccupied)
+    }
+    Transition t1 
+        whenReply loadaccepted -> showAccepted
+        whenReply loadrejected -> showRejected
+
+    State showAccepted {
+        onMsg(loadaccepted : loadaccepted(SLOT, HOLD)) {
+            [# 
+                val s = payloadArg(0)
+                val h = payloadArg(1)
+            #]
+            println("$name | Richiesta accettata per lo slot $s. Hold: $h") color green
+            // Notifica broadcast via Adapter verso la Web GUI
+        }
+    }
+    Goto idle
+
+    State showRejected {
+        onMsg(loadrejected : loadrejected(REASON, HOLD)) {
+            [# 
+                val r = payloadArg(0)
+                val h = payloadArg(1)
+            #]
+            println("$name | Richiesta rifiutata: $r. Hold: $h") color red
+            // Notifica broadcast via Adapter verso la Web GUI
+        }
+    }
+    Goto idle
+
+    State handleDisplayUpdate {
+        onMsg(updateDisplay : updateDisplay(STATE, HOLD, MSG)) {
+            [# 
+                val st = payloadArg(0)
+                val hd = payloadArg(1)
+                val ms = payloadArg(2)
+            #]
+            println("$name | Display aggiornato: [$st] $ms (Hold: $hd)") color cyan
+            // Notifica broadcast via Adapter verso la Web GUI
+        }
+    }
+    Goto idle
+}
+	</pre>
+</p>
+<p>
+	<b>4.4 L'adattatore WebSocket: IOPortWsAdapter</b><br/>
+	L'adapter avvia un server Javalin su porta 7070, serve le pagine statiche della GUI e gestisce la connessione WebSocket:
+	<pre>
+package utils
+
+import io.javalin.Javalin
+import io.javalin.websocket.WsContext
+import it.unibo.kactor.ActorBasic
+import unibo.basicomm23.utils.CommUtils
+import org.json.JSONObject
+import java.util.concurrent.ConcurrentLinkedQueue
+
+class IOPortWsAdapter(private val ownerActor: ActorBasic, port: Int) {
+    private val connectedClients = ConcurrentLinkedQueue<WsContext>()
+
+    init {
+        val app = Javalin.create { config ->
+            config.staticFiles.add("/public") // Contiene index.html, ioport_gui.html, script.js
+        }.start(port)
+
+        app.ws("/ws/ioport") { ws ->
+            ws.onConnect { ctx -> 
+                connectedClients.add(ctx)
+                println("WS Adapter: client connesso -> ${ctx.sessionId()}")
+            }
+            ws.onClose { ctx -> 
+                connectedClients.remove(ctx)
+                println("WS Adapter: client disconnesso -> ${ctx.sessionId()}")
+            }
+            ws.onMessage { ctx ->
+                handleClientMessage(ctx.message())
+            }
+        }
+    }
+
+    private fun handleClientMessage(rawMsg: String) {
+        try {
+            val json = JSONObject(rawMsg)
+            when (json.optString("type")) {
+                "pushButton" -> {
+                    // Costruzione ed emissione dispatch verso l'attore owner in modo thread-safe
+                    val msg = CommUtils.buildDispatch("wsadapter", "pushButton", "pushButton(0)", ownerActor.name)
+                    ownerActor.sendMsgToMyself(msg)
+                }
+                "setOccupied" -> {
+                    val value = json.optBoolean("value", false)
+                    val msg = CommUtils.buildDispatch("wsadapter", "setOccupied", "setOccupied($value)", ownerActor.name)
+                    ownerActor.sendMsgToMyself(msg)
+                }
+            }
+        } catch (e: Exception) {
+            println("WS Adapter: errore nel parsing del messaggio JSON: ${e.message}")
+        }
+    }
+
+    // Metodo invocato dall'attore ioport per inviare aggiornamenti a tutti i client connessi
+    fun broadcastUpdate(state: String, hold: String, msg: String) {
+        val json = JSONObject().apply {
+            put("type", "update")
+            put("state", state)
+            put("hold", hold)
+            put("msg", msg)
+        }
+        val payload = json.toString()
+        connectedClients.forEach { client ->
+            if (client.session.isOpen) {
+                client.send(payload)
+            }
+        }
+    }
+}
+	</pre>
+</p>
+<p>
+	<b>La Web GUI (ioport_gui.html e wscontrol.js)</b><br/>
+	Il frontend web non contiene logica applicativa né di controllo:
+	<ul>
+		<li>
+			Si limita a visualizzare lo stato del sistema (STATE), l'occupazione della stiva (HOLD) e i messaggi operativi.
+		</li>
+		<li>
+			Espone un pulsante per simulare la pressione fisica del pushbutton dell'IOPort.
+		</li>
+		<li>
+			Fornisce uno switch di testing per impostare lo stato di occupazione simulato del sensore (area antistante la porta).
+		</li>
+		<li>
+			Quando l'utente preme il pulsante, invia l'evento su WebSocket ({ "type": "pushButton" }). L'eventuale countdown grafico a video ha uno scopo unicamente visivo per l'utente: la reale sorgente di verità del timeout risiede esclusivamente nel vincolo temporale governato da cargoservice.
+		</li>
+	</ul>
+</p>
+
+
+<h2>Testing</h2> 
+<p>
+	
+</p> 
+
+<h2>Deployment</h2> 
+<p>
+	Il prototipo dello Sprint 1 è strutturato come un progetto autonomo ed eseguibile, pacchettizzato mediante Gradle.
+</p>
+<p>
+	<b>Compilazione ed Esecuzione</b><br/>
+	Dalla radice del progetto dello Sprint 1 (sprint1/), eseguire da riga di comando:
+	<pre>
+./gradlew run
+	</pre>
+	Il comando avvia il runtime QAk, istanzia il contesto locale con gli attori cargoservice e ioport, e solleva il server Javalin integrato nell'adapter.
+</p>
+<p>
+	<b>Mappatura delle Porte di Rete e Servizi</b><br/>
+	Il sistema espone due endpoint di rete distinti con precise responsabilità funzionali:
+	***TABELLA***
+</p>
+<p>
+	<b>Guida all'Uso per l'Utente Finale</b><br/>
+	Ad applicazione avviata, aprire il browser all'indirizzo http://localhost:7070/ioport_gui.html
+	***mettere foto di ciò che si vede quando si apre questo indirizzo***
+</p>
+
+<h2>Definizione dello Sprint2</h2> 
+<p>
+	Requisiti Selezionati per lo Sprint 2:
+	<ul>
+		<li>
+			Movimentazione del DDR Robot (cargorobot): A seguito dell'accettazione del carico e dell'avvenuto rilevamento del container nell'area sensore dell'IOPort, il robot deve muoversi dalla posizione HOME, raggiungere l'IOPort per prelevare il carico, trasferirlo allo slot5 per la marcatura, e infine depositarlo nello slot finale riservato (1–4) prima di rientrare in HOME.
+		</li>
+		<li>
+			Integrazione con RobotSmart26: Interfacciare l'attore cargorobot con il microservizio esterno di navigazione (RobotSmart26), colmando l'abstraction gap del calcolo delle coordinate cartesiane e dei comandi di movimento su griglia.
+		</li>
+		<li>
+			Modellazione dell'Attore marker (Slot 5): Introdurre il componente attivo che simula il dispositivo di etichettatura/scansione barcode nello slot 5, gestendo il tempo di marcatura e la notifica asincrona di completamento (markingDone) verso il robot.
+		</li>
+		<li>
+			Separazione dei Contesti Distribuiti: Superare il vincolo del contesto unico (ctxcargoservice) riorganizzando il sistema su nodi computazionali distinti e comunicanti via protocollo QAk su TCP (ctxcargoservice, ctxcargorobot, ctxioport).
+		</li>
+	</ul>
+</p>
+<p>
+	<b>Goal dello Sprint 2:</b><br/>
+	Progettare e realizzare l'attore cargorobot e integrarlo con l'ambiente virtuale RobotSmart26 per eseguire la missione autonoma di trasferimento container (IOPort -> slot 5 -> slot assegnato -> HOME). Modellare il componente marker per la sincronizzazione del processo di marcatura nello slot 5 e distribuire l'architettura su contesti QAk eterogenei e separati.
+</p>
+ 
+<h2>Maintenance</h2> 
+<p>
+	
+</p>
+
+<div style="background-color: rgba(86, 56, 253, 0.9); color: white; padding: 30px; font-family: sans-serif; margin-top: 50px; border-radius: 8px;">
+    
+    <!-- Titolo principale centrato -->
+    <div style="text-align: center; color: #ffffff; font-size: 1.3em; font-weight: bold;">
+        Team di Sviluppo
+    </div>
+    
+    <!-- Link unico alla Git Repository del Progetto -->
+    <div style="text-align: center; margin-top: 10px; margin-bottom: 30px;">
+        <a href="https://github.com/ariannabuffoni/TF2026.git" target="_blank" style="color: #ffff00; text-decoration: underline; font-size: 1em; font-weight: bold;">
+            💻 GitHub Project Repository
+        </a>
+    </div>
+    
+    <!-- Griglia dei partecipanti (ora mostra solo foto, nome ed email) -->
+    <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; text-align: center;">
+        
+        <!-- Partecipante 1 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_ari.jpg" alt="Foto Arianna" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Arianna Buffoni</div>
+            <div style="font-size: 0.9em; color: #ffffff;">arianna.buffoni@studio.unibo.it</div>
+        </div>
+
+        <!-- Partecipante 2 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_desy.jpeg" alt="Foto Desirée" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Desirée Pellegrini</div>
+            <div style="font-size: 0.9em; color: #ffffff;">desiree.pellegrini@studio.unibo.it</div>
+        </div>
+
+        <!-- Partecipante 3 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_gian.jpeg" alt="Foto Gianluca" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Gianluca Varisco</div>
+            <div style="font-size: 0.9em; color: #ffffff;">gianluca.varisco@studio.unibo.it</div>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>
