@@ -100,11 +100,16 @@ e governare i cicli di temporizzazione per il disimpegno del sistema.
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Formato dei messaggi e scambio dati</h3>
-        <p>Mentre tra gli attori ioport e cargoservice si impiega la semantica nativa QAk (Request/Reply e Dispatch), sul canale WebSocket verso il browser si sceglie un formato JSON minimale:</p>
-        <ul>
-            <li><b>Browser -&gt; Server</b>: <code>{ "type": "pushButton" }</code> oppure <code>{ "type": "setOccupied", "value": true }</code>.</li>
-            <li><b>Server -&gt; Browser</b>: <code>{ "type": "update", "state": "ENGAGED", "hold": "1/4", "msg": "Richiesta accettata" }</code>.</li>
-        </ul>
+        <p>Mentre tra gli attori ioport e cargoservice si impiega la semantica nativa QAk (Request/Reply e Dispatch), sul canale WebSocket verso il browser si sceglie il formato String di IApplMessage:</p>
+        <pre>
+msg(button_pushed, dispatch, webgui, ioport, X, N)
+msg(hold_status, dispatch, ioport, webgui, SLOT_STATES, N)
+msg(working_state, dispatch, ioport, webgui, STATE, N)
+
+msg(containerSensed, dispatch, webgui, ioport, STATE, N)
+msg(outOfService, dispatch, webgui, ioport, CAUSE, N)
+msg(led, dispatch, ioport, webgui, STATE, N)
+        </pre>
         <p>L'adapter si occupa della serializzazione e deserializzazione, mantenendo il frontend completamente agnostico rispetto alla sintassi IApplMessage di QAk.</p>
     </div>
 
@@ -136,29 +141,29 @@ e governare i cicli di temporizzazione per il disimpegno del sistema.
             <tr style="background-color: #ffffff;">
                 <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">TC1: Richiesta accettata</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Almeno 1 slot <code>FREE</code> nella Hold; sensore non occupato</td>
-                <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>pushButton</code> da <code>ioport</code></td>
-                <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invia reply <code>loadaccepted(SLOT, HOLD)</code>; passa da idle a engaged; <code>ioport</code> riceve e notifica la GUI</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>button_pushed</code> da <code>ioport</code></td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invia reply <code>engaged(RESERVED_SLOT, STATE)</code>; passa da idle a engaged; <code>ioport</code> riceve e notifica la GUI</td>
             </tr>
             <!-- Riga 2 -->
             <tr style="background-color: #f7f9ff;">
                 <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">TC2: Rifiuto IOPort occupato</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Flag sensore su occupato (<code>setOccupied(true)</code>)</td>
-                <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>pushButton</code> da <code>ioport</code></td>
-                <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invia reply <code>loadrejectedd(retrylater, HOLD)</code>; lo stato resta invariato (idle)</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>button_pushed</code> da <code>ioport</code></td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invia reply <code>retrylater(CAUSE, HOLD_STATE)</code>; lo stato resta invariato (idle)</td>
             </tr>
             <!-- Riga 3 -->
             <tr style="background-color: #ffffff;">
                 <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">TC3: Rifiuto stiva piena</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Tutti e 4 gli slot occupati/riservati nella Hold</td>
-                <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>pushButton</code> con sensore libero</td>
-                <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> risponde con <code>loadrejected(full, HOLD)</code>; nessuno slot viene modificato</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>button_pushed</code> con sensore libero</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> risponde con <code>reject(HOLD_STATE)</code>; nessuno slot viene modificato</td>
             </tr>
             <!-- Riga 4 -->
             <tr style="background-color: #f7f9ff;">
                 <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">TC4: Timeout 30 secondi</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Sistema appena passato a engaged, slot riservato</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Nessun evento di carico per 30000 ms (<code>whenTime 30000</code>)</td>
-                <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invoca <code>releaseReserved()</code> sulla Hold, emette dispatch <code>updateDisplay</code> verso ioport con messaggio di timeout e torna allo stato idle</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invoca <code>releaseSlot()</code> sulla Hold, emette dispatch <code>updateHoldDisplay</code> verso ioport con messaggio di timeout e torna allo stato idle</td>
             </tr>
         </tbody>
     </table>
@@ -176,30 +181,48 @@ e governare i cicli di temporizzazione per il disimpegno del sistema.
         <h3>Definizione dei Messaggi e del Contesto (sprint1.qak)</h3>
         <p>I messaggi applicativi scambiati tra le entità sono così formalizzati:</p>
         <pre>
-System sprint1
+Request loadrequest     : loadrequest(IOPORT_STATE)
+Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject            : reject(HOLD_STATE) for loadrequest
+Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+Dispatch updateHoldDisplay   : updateHoldDisplay(STATE, HOLD_STATE, MSG)
+Dispatch updateWorkingState : updateWorkingState(STATE)
 
-// --- Interazione Request/Reply tra ioport e cargoservice ---
-Request loadrequest   : loadrequest(OCCUPIED)
-Reply   loadaccepted  : loadaccepted(SLOT, HOLD) for loadrequest
-Reply   loadrejected  : loadrejected(REASON, HOLD) for loadrequest
+Dispatch button_pushed  : button_pushed(X)
+Dispatch working_state  : working_state(STATE)
+Dispatch hold_status    : hold_status(STATE, HOLD_STATE, MSG)
 
-// --- Messaggi interni di comando e notifica ---
-Dispatch pushButton    : pushButton(N)
-Dispatch setOccupied   : setOccupied(FLAG)
-Dispatch updateDisplay : updateDisplay(STATE, HOLD, MSG)
-
-// --- Contesto unico per lo Sprint 1 ---
-Context ctxcargoservice ip [host="localhost" port=8050]
+Dispatch outOfService   : outOfService(CAUSE)
+Dispatch containerSensed: containerSensed(VAL)
+Dispatch led            : led(STATE)
         </pre>
         <ul>
             <li>
-                <b>loadrequest / loadaccepted / loadrejected</b>: definiscono il protocollo transazionale request-reply con cui ioport interroga cargoservice.
+                <b>loadrequest / retrylater / reject / engaged</b>: definiscono il protocollo transazionale request-reply con cui ioport interroga cargoservice.
             </li>
             <li>
-                <b>pushButton / setOccupied</b>: sono messaggi asincroni (dispatch) iniettati dall'adapter verso ioport per notificare le azioni dell'utente sulla Web GUI.
+                <b>button_pushed / setOccupied</b>: sono messaggi asincroni (dispatch) iniettati dall'adapter verso ioport per notificare le azioni dell'utente sulla Web GUI.
             </li>
             <li>
-                <b>updateDisplay</b>: dispatch con cui cargoservice notifica autonomamente a ioport un cambio di stato da visualizzare sul display (es. a seguito dello scadere del timeout).
+                <b>updateHoldDisplay</b>: dispatch con cui cargoservice notifica autonomamente a ioport un cambio di stato da visualizzare sul display (es. a seguito dello scadere del timeout).
+            </li>
+            <li>
+                <b>containerSensed</b>: dispatch inviato dal Mock del sensore (Web GUI) verso ioport (e da questo inoltrato a cargoservice) per notificare il caricamento o la rimozione fisica del container dalla zona di carico.
+            </li>
+            <li>
+                <b>outOfService</b>: dispatch asincrono generato dal Mock di simulazione guasto o dal Core per notificare una condizione di errore imprevista (es. errore sensore) e forzare il blocco del sistema.
+            </li>
+            <li>
+                <b>updateWorkingState</b>: dispatch con cui cargoservice notifica a ioport la variazione dello stato operativo generale del servizio (es. passaggio da WORKING ad OUT_OF_SERVICE).
+            </li>
+            <li>
+                <b>hold_status</b>: dispatch inviato dall'adapter verso la Web GUI per aggiornare le tre linee del display (stato corrente, stato slot stiva e messaggio informativo).
+            </li>
+            <li>
+                <b>working_state</b>: dispatch inviato dall'adapter verso la Web GUI per aggiornare la spia/etichetta dello stato operativo generale del servizio.
+            </li>
+            <li>
+                <b>led</b>: Dispatch per sincronizzare lo stato dell'indicatore luminoso (spento, lampeggiante, rosso) tra cargoservice, ioport e il LED visualizzato sulla Web GUI.
             </li>
         </ul>
     </div>
@@ -210,61 +233,195 @@ Context ctxcargoservice ip [host="localhost" port=8050]
             L'attore gestisce la logica di business e governa il timeout di 30 secondi per la transizione tra gli stati idle, engaged e disengaged. Incapsula l'oggetto Hold mediante la direttiva withobj.
         </p>
         <pre>
-QActor cargoservice context ctxcargoservice {
+QActor cargoservice context ctxcargoservice 
+    withobj h using "cargoservice.Hold()" {
     [# 
-        var Slot = -1
-        var HoldStatus = ""
+        var CurrentReservedSlot = -1
+        var CurrentState = "IDLE"
+        var IsOutOfService = false
+        var WaitStartTime = 0L
+        var RemainingTime = 30000L
     #]
-    withobj hold using "utils.Hold()"
 
-    State idle initial {
-        println("$name | pronto in attesa di richieste (IDLE)") color magenta
-    }
-    Transition t0 whenRequest loadrequest -> handleRequest
-
-    State handleRequest {
-        onMsg(loadrequest : loadrequest(OCCUPIED)) {
-            [# val isOcc = payloadArg(0).toBoolean() #]
-            if [# isOcc #] {
-                [# HoldStatus = hold.getStatusString() #]
-                replyTo loadrequest with loadrejected : loadrejected(retrylater, $HoldStatus)
-            } else {
-                [# Slot = hold.reserveFirstFree() #]
-                [# HoldStatus = hold.getStatusString() #]
-                if [# Slot != -1 #] {
-                    replyTo loadrequest with loadaccepted : loadaccepted($Slot, $HoldStatus)
-                } else {
-                    replyTo loadrequest with loadrejected : loadrejected(full, $HoldStatus)
-                }
-            }
-        }
-    }
-    Goto engaged if [# Slot != -1 && !payloadArg(0).toBoolean() #] else idle
-
-    State engaged {
-        println("$name | ENGAGED: attesa posizionamento carico (30s)") color magenta
-        // Simulazione LED: stato lampeggiante
-        println("LED Status -> BLINKING") color yellow
-    }
-    Transition t1 whenTime 30000 -> disengaged
-
-    State disengaged {
-        println("$name | Timeout 30s scaduto: rilascio slot $Slot e ritorno in IDLE") color red
-        [# 
-            hold.releaseReserved(Slot)
-            Slot = -1
-            HoldStatus = hold.getStatusString() 
-        #]
-        // Spegnimento LED (simulato)
-        println("LED Status -> OFF") color yellow
-        
-        // Notifica autonoma verso ioport
-        forward ioport -m updateDisplay : updateDisplay(IDLE, $HoldStatus, "Timeout scaduto: slot liberato")
+    State s0 initial {
+        println("$name | avvio CargoService Core") color magenta
+        [# var ServiceWorking = "'WORKING'" #]
+        forward ioport -m updateWorkingState : updateWorkingState($ServiceWorking)
     }
     Goto idle
+
+    State idle {
+        [# 
+            CurrentState = "IDLE" 
+            var LedOff = "'off'"
+            WaitStartTime = 0L
+            RemainingTime = 30000L
+        #]
+        println("$name | Sistema in stato IDLE") color magenta
+        forward ioport -m led : led($LedOff)
+    }
+    Transition t0 
+        whenRequest loadrequest -> handleLoadRequest
+        whenMsg outOfService -> handleOutOfService
+
+    State handleLoadRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var IoportState = payloadArg(0).toBoolean()
+                var CurrentHoldState = h.getHoldStateString()
+                
+                if (IoportState) {
+                    var SystemBusyStr = "'ioport_occupied'" 
+                    #] 
+                    replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
+                    println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta 
+                    [#
+                } else if (h.isFull()) {
+                    #] 
+                    replyTo loadrequest with reject : reject($CurrentHoldState) 
+                    println("$name | reject($CurrentHoldState)") color magenta
+                    [#
+                } else {
+                    CurrentReservedSlot = h.reserveNextFreeSlot()
+                    if (CurrentReservedSlot != -1) {
+                        CurrentState = "ENGAGED"
+                        CurrentHoldState = h.getHoldStateString()
+                        var LedBlinking = "'blinking'"
+                        #] 
+                        replyTo loadrequest with engaged : engaged($CurrentReservedSlot, $CurrentHoldState)
+                        println("$name | engaged($CurrentReservedSlot, $CurrentHoldState)") color magenta
+                        forward ioport -m led : led($LedBlinking)
+                        [#
+                    } else {
+                        var SystemBusyStr = "'system_busy'"
+                        #] 
+                        replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
+                        println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta 
+                        [#
+                    }
+                }
+            #]
+        }
+    }
+    Goto engagedWaitContainer if [# CurrentState == "ENGAGED" #] else idle
+
+   State engagedWaitContainer {
+        [# 
+            if (WaitStartTime == 0L) {
+                WaitStartTime = System.currentTimeMillis()
+            }
+            var Elapsed = System.currentTimeMillis() - WaitStartTime
+            RemainingTime = 30000L - Elapsed
+            if (RemainingTime <= 0L) RemainingTime = 1L
+        #]
+        println("$name | In attesa del container (Tempo residuo: ${RemainingTime}ms)...") color magenta
+    }
+    Transition t1 
+        whenTimeVar RemainingTime  -> handleTimeout 
+        whenRequest loadrequest    -> handleBusyRequest
+        whenMsg containerSensed    -> handleContainer
+        whenMsg outOfService       -> handleEngagedOutOfService
+
+    State handleBusyRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var CurrentHoldState = h.getHoldStateString()
+                var SystemEngagedStr = "'system_engaged'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($SystemEngagedStr, $CurrentHoldState)
+            println("$name | retrylater($SystemEngagedStr, $CurrentHoldState)") color magenta 
+        }
+    }
+    Goto engagedWaitContainer
+    
+    State handleEngagedOutOfService {
+        println("$name | GUASTO RILEVATO DURANTE ENGAGED!") color magenta
+        [# 
+            IsOutOfService = true
+            
+            // Release dello slot che era stato prenotato
+            if (CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+            
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'OUT_OF_SERVICE'"
+            var MsgStr = "'Guasto sensore durante attesa'"
+            var LedRed = "'red'"
+            var ServiceDown = "'OUT_OF_SERVICE'"
+        #]
+        forward ioport -m led : led($LedRed)
+        forward ioport -m updateWorkingState : updateWorkingState($ServiceDown)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
+    }
+    Goto outOfServiceState
+
+    State handleTimeout {
+        println("$name | TIMEOUT scaduto! Container non rilevato entro 30s.") color magenta
+        [# 
+            if (CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'DISENGAGED'"
+            var TimeoutMsgStr = "'Timer scaduto (30s)'"
+        #]
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $TimeoutMsgStr)
+    }
+    Goto idle
+    
+    State handleContainer {
+        println("$name | Container rilevato -> aggiornamento slot a OCCUPIED") color magenta
+        [# 
+            if (CurrentReservedSlot != -1) {
+                h.setSlotOccupied(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'LOADED'"
+            var LoadedMsgStr = "'Container preso in carico'"
+        #]
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $LoadedMsgStr)
+    }
+    Goto idle
+    
+    State handleOutOfService {
+        println("$name | ERRORE SENSORE: Ingresso in Out Of Service") color magenta
+        [# 
+            IsOutOfService = true
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'OUT_OF_SERVICE'"
+            var MsgStr = "'Guasto sensore'"
+            var LedRed = "'red'"
+            var ServiceDown = "'OUT_OF_SERVICE'"
+        #]
+        forward ioport -m led : led($LedRed)
+        forward ioport -m updateWorkingState : updateWorkingState($ServiceDown)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
+    }
+    Goto outOfServiceState
+
+    State outOfServiceState {
+        println("$name | Sistema BLOCCO: Out Of Service") color magenta
+    }
+    Transition t2
+        whenRequest loadrequest -> handleRejectOutOfService
+
+    State handleRejectOutOfService {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var CurrentHoldState = h.getHoldStateString()
+                var CauseStr = "'out_of_service'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($CauseStr, $CurrentHoldState)
+        }
+    }
+    Goto outOfServiceState
 }
         </pre>
-        <p><i>Osservazione sul Timeout:</i> La transizione temporizzata <code>Transition t1 whenTime 30000 -&gt; disengaged</code> è governata interamente dal runtime QAk. Il disimpegno (disengaged) è un'iniziativa autonoma di cargoservice che propaga una notifica push (updateDisplay) verso ioport senza che quest'ultimo l'abbia esplicitamente richiesta.</p>
+        <p><i>Osservazione sul Timeout:</i> La transizione temporizzata <code>Transition t1 whenTime 30000 -&gt; disengaged</code> è governata interamente dal runtime QAk. Il disimpegno (disengaged) è un'iniziativa autonoma di cargoservice che propaga una notifica push (updateHoldDisplay) verso ioport senza che quest'ultimo l'abbia esplicitamente richiesta.</p>
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
@@ -274,79 +431,130 @@ QActor cargoservice context ctxcargoservice {
         </p>
         <pre>
 QActor ioport context ctxcargoservice {
-    [# 
-        var isOccupied = false
-        var wsPort = 7070
+   [# 
+        var SensorOccupied = false 
+        lateinit var Adapter: ioport.IOPortWsAdapter
     #]
-
+    
     State s0 initial {
-        println("$name | Inizializzazione IOPortWsAdapter sulla porta $wsPort") color green
-        [# val adapter = utils.IOPortWsAdapter(this, wsPort) #]
+        println("$name | avvio attore IOPort") color blue
+        [# Adapter = ioport.IOPortWsAdapter(myself, 7070) #]
     }
-    Goto idle
+    Goto acceptEvents
 
-    State idle {
-        println("$name | pronto in ascolto") color green
+    State acceptEvents {
+        println("$name | in attesa di eventi...") color blue
     }
     Transition t0 
-        whenMsg pushButton    -> handleButtonPressed
-        whenMsg setOccupied   -> handleSensorChange
-        whenMsg updateDisplay -> handleDisplayUpdate
+        whenMsg button_pushed       -> handleButton
+        whenMsg containerSensed     -> handleContainerMock
+        whenMsg outOfService        -> handleOutOfServiceMock
+        whenMsg updateHoldDisplay   -> handleCoreHoldUpdate
+        whenMsg updateWorkingState  -> handleCoreWorkingState
+        whenMsg led                 -> handleLedUpdate
 
-    State handleSensorChange {
-        onMsg(setOccupied : setOccupied(FLAG)) {
-            [# isOccupied = payloadArg(0).toBoolean() #]
-            println("$name | aggiornamento stato sensore: occupato=$isOccupied") color green
-        }
-    }
-    Goto idle
-
-    State handleButtonPressed {
-        println("$name | Pulsante premuto: invio loadrequest(isOccupied=$isOccupied)") color green
-        request cargoservice -m loadrequest : loadrequest($isOccupied)
+	// Pressione pulsante GUI -> Invio Request a CargoService
+    State handleButton {
+        println("$name | Pressione pulsante ricevuta dalla GUI") color blue
+        [# var IoportStateStr = if (SensorOccupied) "true" else "false" #]
+        request cargoservice -m loadrequest : loadrequest($IoportStateStr)
     }
     Transition t1 
-        whenReply loadaccepted -> showAccepted
-        whenReply loadrejected -> showRejected
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
 
-    State showAccepted {
-        onMsg(loadaccepted : loadaccepted(SLOT, HOLD)) {
+    // Conversione Reply di CargoService -> Dispatch per la GUI
+    State handleEngaged {
+        onMsg(engaged : engaged(RESERVED_SLOT, HOLD_STATE)) {
             [# 
-                val s = payloadArg(0)
-                val h = payloadArg(1)
+                var ReservedSlot = payloadArg(0)
+                var HoldState = payloadArg(1)
+                var StateStr = "'ENGAGED'"
+                var MsgStr = "'Slot " + ReservedSlot + " Riservato'"
+                Adapter.updateHoldStatus(StateStr, HoldState, MsgStr)
             #]
-            println("$name | Richiesta accettata per lo slot $s. Hold: $h") color green
-            // Notifica broadcast via Adapter verso la Web GUI
+            println("$name | Risposta engaged da parte di cargoservice: $StateStr, $HoldState, $MsgStr") color blue
         }
     }
-    Goto idle
+    Goto acceptEvents
 
-    State showRejected {
-        onMsg(loadrejected : loadrejected(REASON, HOLD)) {
+    State handleReject {
+        onMsg(reject : reject(HOLD_STATE)) {
             [# 
-                val r = payloadArg(0)
-                val h = payloadArg(1)
+                var HoldState = payloadArg(0) 
+                var StateStr = "'REJECTED'"
+                var MsgStr = "'stiva piena'"
+                Adapter.updateHoldStatus(StateStr, HoldState, MsgStr)
             #]
-            println("$name | Richiesta rifiutata: $r. Hold: $h") color red
-            // Notifica broadcast via Adapter verso la Web GUI
+            println("$name | Risposta reject da parte di cargoservice: $StateStr, $HoldState, $MsgStr") color blue
         }
     }
-    Goto idle
+    Goto acceptEvents
 
-    State handleDisplayUpdate {
-        onMsg(updateDisplay : updateDisplay(STATE, HOLD, MSG)) {
+    State handleRetryLater {
+        onMsg(retrylater : retrylater(CAUSE, HOLD_STATE)) {
             [# 
-                val st = payloadArg(0)
-                val hd = payloadArg(1)
-                val ms = payloadArg(2)
+                var Cause = payloadArg(0)
+                var HoldState = payloadArg(1)
+                var StateStr = "'RETRY LATER'"
+                var CauseStr = "'" + Cause + "'"
+                Adapter.updateHoldStatus(StateStr, HoldState, CauseStr)
             #]
-            println("$name | Display aggiornato: [$st] $ms (Hold: $hd)") color cyan
-            // Notifica broadcast via Adapter verso la Web GUI
+            println("$name | Risposta retrylater da parte di cargoservice: $StateStr, $HoldState, $CauseStr") color blue
         }
     }
-    Goto idle
+    Goto acceptEvents
+	
+    // Forward verso Adapter WebSocket
+    State handleCoreHoldUpdate {
+        onMsg(updateHoldDisplay : updateHoldDisplay(STATE, HOLD_STATE, MSG)) {
+            [# Adapter.updateHoldStatus(payloadArg(0), payloadArg(1), payloadArg(2)) #]
+            println("$name | Richiesto aggiornamento del display") color blue
+        }
+    }
+    Goto acceptEvents
+
+   State handleCoreWorkingState {
+        onMsg(updateWorkingState : updateWorkingState(STATE)) {
+            [# Adapter.updateWorkingState(payloadArg(0)) #]
+            println("$name | Richiesto aggiornamento del working state") color blue
+        }
+    }
+    Goto acceptEvents
+
+	// --- MOCK Led ---
+    State handleLedUpdate {
+        onMsg(led : led(STATE)) {
+            [# Adapter.updateLed(payloadArg(0)) #]
+            println("$name | Richiesto aggiornamento del led") color yellow
+        }
+    }
+    Goto acceptEvents
+    
+   // --- MOCK Hardware ---
+    State handleContainerMock {
+    	printCurrentMessage color red
+    	[# 
+        	var SensorVal = currentMsg.msgContent()
+        	SensorOccupied = SensorVal.toBoolean()
+   		 #]
+    	println("$name | Variazione sensore container: $SensorOccupied") color green
+    
+    	if [# SensorOccupied #] {
+        	forward cargoservice -m containerSensed : containerSensed(true)
+    	}
+	}
+	Goto acceptEvents
+
+    State handleOutOfServiceMock {
+    	println("$name | Simulazione errore del sensore") color red
+        forward cargoservice -m outOfService : outOfService(sensor_fault)
+    }
+    Goto acceptEvents
 }
         </pre>
+        <p><i>Osservazione su ioport:</i> in questa fase del progetto, poiché si è inserita nella GUI un mock di sensore e di led, ioport è stato reso responsabile anche della loro gestione. In uno Sprint successivo, le cose verranno disaccoppiate.</p>
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
@@ -355,70 +563,87 @@ QActor ioport context ctxcargoservice {
             L'adapter avvia un server Javalin su porta 7070, serve le pagine statiche della GUI e gestisce la connessione WebSocket:
         </p>
         <pre>
-package utils
+package ioport;
 
-import io.javalin.Javalin
-import io.javalin.websocket.WsContext
-import it.unibo.kactor.ActorBasic
-import unibo.basicomm23.utils.CommUtils
-import org.json.JSONObject
-import java.util.concurrent.ConcurrentLinkedQueue
+import io.javalin.Javalin;
+import io.javalin.http.staticfiles.Location;
+import io.javalin.websocket.WsContext;
+import it.unibo.kactor.ActorBasic;
+import unibo.basicomm23.interfaces.IApplMessage;
+import unibo.basicomm23.msg.ApplMessage;
+import unibo.basicomm23.utils.CommUtils;
 
-class IOPortWsAdapter(private val ownerActor: ActorBasic, port: Int) {
-    private val connectedClients = ConcurrentLinkedQueue&lt;WsContext&gt;()
+import java.time.Duration;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
-    init {
-        val app = Javalin.create { config ->
-            config.staticFiles.add("/public") // Contiene index.html, ioport_gui.html, script.js
-        }.start(port)
+public class IOPortWsAdapter {
+    private final ActorBasic ownerActor;
+    private final ConcurrentLinkedQueue<WsContext> connectedClients = new ConcurrentLinkedQueue<>();
 
-        app.ws("/ws/ioport") { ws ->
-            ws.onConnect { ctx -> 
-                connectedClients.add(ctx)
-                println("WS Adapter: client connesso -> ${ctx.sessionId()}")
-            }
-            ws.onClose { ctx -> 
-                connectedClients.remove(ctx)
-                println("WS Adapter: client disconnesso -> ${ctx.sessionId()}")
-            }
-            ws.onMessage { ctx ->
-                handleClientMessage(ctx.message())
-            }
-        }
+    public IOPortWsAdapter(ActorBasic ownerActor, int port) {
+        this.ownerActor = ownerActor;
+
+        Javalin app = Javalin.create(config -> {
+        	config.staticFiles.add("utils/gui", Location.EXTERNAL);
+            
+            config.jetty.wsFactoryConfig(wsFactory -> {
+                wsFactory.setIdleTimeout(Duration.ZERO);
+            });
+        }).start(port);
+
+        app.ws("/ws/ioport", ws -> {
+            ws.onConnect(ctx -> {
+                connectedClients.add(ctx);
+                System.out.println("GUI Client connesso via WebSocket!");
+            });
+
+            ws.onClose(ctx -> {
+                connectedClients.remove(ctx);
+                System.out.println("GUI Client disconnesso.");
+            });
+
+            ws.onMessage(ctx -> {
+                String rawMsg = ctx.message();
+                System.out.println("ricevuto messaggio: " + rawMsg);
+                try {
+                    // Parsing della stringa direttamente tramite la classe ApplMessage
+                    IApplMessage msg = new ApplMessage(rawMsg);
+                    
+                    // Inoltro all'attore ioport
+                    ownerActor.sendMsgToMyself(msg);
+                } catch (Exception e) {
+                    System.err.println("Errore parsing IApplMessage: " + e.getMessage());
+                }
+            });
+        });
     }
 
-    private fun handleClientMessage(rawMsg: String) {
-        try {
-            val json = JSONObject(rawMsg)
-            when (json.optString("type")) {
-                "pushButton" -> {
-                    // Costruzione ed emissione dispatch verso l'attore owner in modo thread-safe
-                    val msg = CommUtils.buildDispatch("wsadapter", "pushButton", "pushButton(0)", ownerActor.name)
-                    ownerActor.sendMsgToMyself(msg)
-                }
-                "setOccupied" -> {
-                    val value = json.optBoolean("value", false)
-                    val msg = CommUtils.buildDispatch("wsadapter", "setOccupied", "setOccupied($value)", ownerActor.name)
-                    ownerActor.sendMsgToMyself(msg)
-                }
-            }
-        } catch (e: Exception) {
-            println("WS Adapter: errore nel parsing del messaggio JSON: ${e.message}")
-        }
+    public void updateHoldStatus(String state, String hold, String msg) {
+        String cleanState = state != null ? state.replace("'", "") : "IDLE";
+        String cleanHold  = hold != null ? hold.replace("'", "") : "[]";
+        String cleanMsg   = msg != null ? msg.replace("'", "") : "";
+
+        String content = String.format("hold_info('%s', '%s', '%s')", cleanState, cleanHold, cleanMsg);
+        IApplMessage applMsg = CommUtils.buildDispatch("ioport", "hold_status", content, "webgui");
+        broadcast(applMsg.toString());
     }
 
-    // Metodo invocato dall'attore ioport per inviare aggiornamenti a tutti i client connessi
-    fun broadcastUpdate(state: String, hold: String, msg: String) {
-        val json = JSONObject().apply {
-            put("type", "update")
-            put("state", state)
-            put("hold", hold)
-            put("msg", msg)
-        }
-        val payload = json.toString()
-        connectedClients.forEach { client ->
-            if (client.session.isOpen) {
-                client.send(payload)
+    public void updateWorkingState(String workingState) {
+        String content = String.format("'%s'", workingState);
+        IApplMessage applMsg = CommUtils.buildDispatch("ioport", "working_state", content, "webgui");
+        broadcast(applMsg.toString());
+    }
+
+    public void updateLed(String ledState) {
+        String content = String.format("'%s'", ledState);
+        IApplMessage applMsg = CommUtils.buildDispatch("ioport", "led", content, "webgui");
+        broadcast(applMsg.toString());
+    }
+
+    public void broadcast(String message) {
+        for (WsContext client : connectedClients) {
+            if (client.session.isOpen()) {
+                client.send(message);
             }
         }
     }
@@ -433,7 +658,7 @@ class IOPortWsAdapter(private val ownerActor: ActorBasic, port: Int) {
             <li>si limita a visualizzare lo stato del sistema (STATE), l'occupazione della stiva (HOLD) e i messaggi operativi.</li>
             <li>espone un pulsante per simulare la pressione fisica del pushbutton dell'IOPort.</li>
             <li>fornisce uno switch di testing per impostare lo stato di occupazione simulato del sensore (area antistante la porta).</li>
-            <li>quando l'utente preme il pulsante, invia l'evento su WebSocket (<code>{ "type": "pushButton" }</code>). L'eventuale countdown grafico a video ha uno scopo unicamente visivo per l'utente: la reale sorgente di verità del timeout risiede esclusivamente nel vincolo temporale governato da cargoservice.</li>
+            <li>quando l'utente preme il pulsante, invia l'evento su WebSocket. L'eventuale countdown grafico a video ha uno scopo unicamente visivo per l'utente: la reale sorgente di verità del timeout risiede esclusivamente nel vincolo temporale governato da cargoservice.</li>
         </ul>
     </div>
 

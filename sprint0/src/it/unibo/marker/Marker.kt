@@ -32,7 +32,7 @@ class Marker ( name: String, scope: CoroutineScope, isconfined: Boolean=false, i
 		return { //this:ActionBasciFsm
 				state("s0") { //this:State
 					action { //it:State
-						CommUtils.outblue("$name | starts ")
+						CommUtils.outcyan("$name | starts ")
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002

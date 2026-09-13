@@ -21,17 +21,14 @@ evattr = {
     'color': 'darkgreen',
     'style': 'dotted'
 }
-with Diagram('sprint0Arch', show=False, outformat='png', graph_attr=graphattr) as diag:
+with Diagram('cargoserviceArch', show=False, outformat='png', graph_attr=graphattr) as diag:
   with Cluster('env'):
      sys = Custom('','./qakicons/system.png')
 ### see https://renenyffenegger.ch/notes/tools/Graphviz/attributes/label/HTML-like/index
      with Cluster('ctxcargoservice', graph_attr=nodeattr):
-          sonar=Custom('sonar','./qakicons/symActorWithobjSmall.png')
-          marker=Custom('marker','./qakicons/symActorWithobjSmall.png')
-          cargorobot=Custom('cargorobot','./qakicons/symActorWithobjSmall.png')
-          cargoservice=Custom('cargoservice','./qakicons/symActorWithobjSmall.png')
           ioport=Custom('ioport','./qakicons/symActorWithobjSmall.png')
-     sonar >> Edge( label='sonar', **eventedgeattr, decorate='true', fontcolor='red') >> sys
+          cargoservice=Custom('cargoservice','./qakicons/symActorWithobjSmall.png')
      ioport >> Edge(color='magenta', style='solid', decorate='true', label='<loadrequest<font color="darkgreen"> retrylater reject engaged</font> &nbsp; >',  fontcolor='magenta') >> cargoservice
-     marker >> Edge(color='blue', style='solid',  decorate='true', label='<markingDone &nbsp; >',  fontcolor='blue') >> cargorobot
+     ioport >> Edge(color='blue', style='solid',  decorate='true', label='<containerSensed &nbsp; outOfService &nbsp; >',  fontcolor='blue') >> cargoservice
+     cargoservice >> Edge(color='blue', style='solid',  decorate='true', label='<updateWorkingState &nbsp; led &nbsp; updateHoldDisplay &nbsp; >',  fontcolor='blue') >> ioport
 diag

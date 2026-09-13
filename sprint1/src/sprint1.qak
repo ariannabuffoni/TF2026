@@ -1,0 +1,339 @@
+System cargoservice
+
+// Interazione Core (IOPort <-> CargoService)
+Request loadrequest     : loadrequest(IOPORT_STATE)
+Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject            : reject(HOLD_STATE) for loadrequest
+Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+// Messaggi interni per la sincronizzazione del display
+Dispatch updateHoldDisplay   : updateHoldDisplay(STATE, HOLD_STATE, MSG)
+Dispatch updateWorkingState : updateWorkingState(STATE)
+
+// Interazione GUI (WebGUI <-> IOPort)
+Dispatch button_pushed  : button_pushed(X)
+Dispatch working_state  : working_state(STATE)
+Dispatch hold_status    : hold_status(STATE, HOLD_STATE, MSG)
+
+// Mock & Controllo Hardware
+Dispatch outOfService   : outOfService(CAUSE)
+Dispatch containerSensed: containerSensed(VAL)
+Dispatch led            : led(STATE)
+
+
+
+
+Context ctxcargoservice ip [host="localhost" port=8050]
+
+// ---------------- Attore IOPORT -----------------------------------------------------------
+QActor ioport context ctxcargoservice {
+   [# 
+        var SensorOccupied = false 
+        lateinit var Adapter: ioport.IOPortWsAdapter
+    #]
+    
+    State s0 initial {
+        println("$name | avvio attore IOPort") color blue
+        [# Adapter = ioport.IOPortWsAdapter(myself, 7070) #]
+    }
+    Goto acceptEvents
+
+    State acceptEvents {
+        println("$name | in attesa di eventi...") color blue
+    }
+    Transition t0 
+        whenMsg button_pushed       -> handleButton
+        whenMsg containerSensed     -> handleContainerMock
+        whenMsg outOfService        -> handleOutOfServiceMock
+        whenMsg updateHoldDisplay   -> handleCoreHoldUpdate
+        whenMsg updateWorkingState  -> handleCoreWorkingState
+        whenMsg led                 -> handleLedUpdate
+
+	// Pressione pulsante GUI -> Invio Request a CargoService
+    State handleButton {
+        println("$name | Pressione pulsante ricevuta dalla GUI") color blue
+        [# var IoportStateStr = if (SensorOccupied) "true" else "false" #]
+        request cargoservice -m loadrequest : loadrequest($IoportStateStr)
+    }
+    Transition t1 
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
+
+    // Conversione Reply di CargoService -> Dispatch per la GUI
+    State handleEngaged {
+        onMsg(engaged : engaged(RESERVED_SLOT, HOLD_STATE)) {
+            [# 
+                var ReservedSlot = payloadArg(0)
+                var HoldState = payloadArg(1)
+                var StateStr = "'ENGAGED'"
+                var MsgStr = "'Slot " + ReservedSlot + " Riservato'"
+                Adapter.updateHoldStatus(StateStr, HoldState, MsgStr)
+            #]
+            println("$name | Risposta engaged da parte di cargoservice: $StateStr, $HoldState, $MsgStr") color blue
+        }
+    }
+    Goto acceptEvents
+
+    State handleReject {
+        onMsg(reject : reject(HOLD_STATE)) {
+            [# 
+                var HoldState = payloadArg(0) 
+                var StateStr = "'REJECTED'"
+                var MsgStr = "'stiva piena'"
+                Adapter.updateHoldStatus(StateStr, HoldState, MsgStr)
+            #]
+            println("$name | Risposta reject da parte di cargoservice: $StateStr, $HoldState, $MsgStr") color blue
+        }
+    }
+    Goto acceptEvents
+
+    State handleRetryLater {
+        onMsg(retrylater : retrylater(CAUSE, HOLD_STATE)) {
+            [# 
+                var Cause = payloadArg(0)
+                var HoldState = payloadArg(1)
+                var StateStr = "'RETRY LATER'"
+                var CauseStr = "'" + Cause + "'"
+                Adapter.updateHoldStatus(StateStr, HoldState, CauseStr)
+            #]
+            println("$name | Risposta retrylater da parte di cargoservice: $StateStr, $HoldState, $CauseStr") color blue
+        }
+    }
+    Goto acceptEvents
+	
+    // Forward verso Adapter WebSocket
+    State handleCoreHoldUpdate {
+        onMsg(updateHoldDisplay : updateHoldDisplay(STATE, HOLD_STATE, MSG)) {
+            [# Adapter.updateHoldStatus(payloadArg(0), payloadArg(1), payloadArg(2)) #]
+            println("$name | Richiesto aggiornamento del display") color blue
+        }
+    }
+    Goto acceptEvents
+
+   State handleCoreWorkingState {
+        onMsg(updateWorkingState : updateWorkingState(STATE)) {
+            [# Adapter.updateWorkingState(payloadArg(0)) #]
+            println("$name | Richiesto aggiornamento del working state") color blue
+        }
+    }
+    Goto acceptEvents
+
+	// --- MOCK Led ---
+    State handleLedUpdate {
+        onMsg(led : led(STATE)) {
+            [# Adapter.updateLed(payloadArg(0)) #]
+            println("$name | Richiesto aggiornamento del led") color yellow
+        }
+    }
+    Goto acceptEvents
+    
+   // --- MOCK Hardware ---
+    State handleContainerMock {
+    	printCurrentMessage color red
+    	[# 
+        	var SensorVal = currentMsg.msgContent()
+        	SensorOccupied = SensorVal.toBoolean()
+   		 #]
+    	println("$name | Variazione sensore container: $SensorOccupied") color green
+    
+    	if [# SensorOccupied #] {
+        	forward cargoservice -m containerSensed : containerSensed(true)
+    	}
+	}
+	Goto acceptEvents
+
+    State handleOutOfServiceMock {
+    	println("$name | Simulazione errore del sensore") color red
+        forward cargoservice -m outOfService : outOfService(sensor_fault)
+    }
+    Goto acceptEvents
+}
+
+// ---------------- Attore CARGOSERVICE -----------------------------------------------------------
+QActor cargoservice context ctxcargoservice 
+    withobj h using "cargoservice.Hold()" {
+    [# 
+        var CurrentReservedSlot = -1
+        var CurrentState = "IDLE"
+        var IsOutOfService = false
+        var WaitStartTime = 0L
+        var RemainingTime = 30000L
+    #]
+
+    State s0 initial {
+        println("$name | avvio CargoService Core") color magenta
+        [# var ServiceWorking = "'WORKING'" #]
+        forward ioport -m updateWorkingState : updateWorkingState($ServiceWorking)
+    }
+    Goto idle
+
+    State idle {
+        [# 
+            CurrentState = "IDLE" 
+            var LedOff = "'off'"
+            WaitStartTime = 0L
+            RemainingTime = 30000L
+        #]
+        println("$name | Sistema in stato IDLE") color magenta
+        forward ioport -m led : led($LedOff)
+    }
+    Transition t0 
+        whenRequest loadrequest -> handleLoadRequest
+        whenMsg outOfService -> handleOutOfService
+
+    State handleLoadRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var IoportState = payloadArg(0).toBoolean()
+                var CurrentHoldState = h.getHoldStateString()
+                
+                if (IoportState) {
+                    var SystemBusyStr = "'ioport_occupied'" 
+                    #] 
+                    replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
+                    println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta 
+                    [#
+                } else if (h.isFull()) {
+                    #] 
+                    replyTo loadrequest with reject : reject($CurrentHoldState) 
+                    println("$name | reject($CurrentHoldState)") color magenta
+                    [#
+                } else {
+                    CurrentReservedSlot = h.reserveNextFreeSlot()
+                    if (CurrentReservedSlot != -1) {
+                        CurrentState = "ENGAGED"
+                        CurrentHoldState = h.getHoldStateString()
+                        var LedBlinking = "'blinking'"
+                        #] 
+                        replyTo loadrequest with engaged : engaged($CurrentReservedSlot, $CurrentHoldState)
+                        println("$name | engaged($CurrentReservedSlot, $CurrentHoldState)") color magenta
+                        forward ioport -m led : led($LedBlinking)
+                        [#
+                    } else {
+                        var SystemBusyStr = "'system_busy'"
+                        #] 
+                        replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
+                        println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta 
+                        [#
+                    }
+                }
+            #]
+        }
+    }
+    Goto engagedWaitContainer if [# CurrentState == "ENGAGED" #] else idle
+
+   State engagedWaitContainer {
+        [# 
+            if (WaitStartTime == 0L) {
+                WaitStartTime = System.currentTimeMillis()
+            }
+            var Elapsed = System.currentTimeMillis() - WaitStartTime
+            RemainingTime = 30000L - Elapsed
+            if (RemainingTime <= 0L) RemainingTime = 1L
+        #]
+        println("$name | In attesa del container (Tempo residuo: ${RemainingTime}ms)...") color magenta
+    }
+    Transition t1 
+        whenTimeVar RemainingTime  -> handleTimeout 
+        whenRequest loadrequest    -> handleBusyRequest
+        whenMsg containerSensed    -> handleContainer
+        whenMsg outOfService       -> handleEngagedOutOfService
+
+    State handleBusyRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var CurrentHoldState = h.getHoldStateString()
+                var SystemEngagedStr = "'system_engaged'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($SystemEngagedStr, $CurrentHoldState)
+            println("$name | retrylater($SystemEngagedStr, $CurrentHoldState)") color magenta 
+        }
+    }
+    Goto engagedWaitContainer
+    
+    State handleEngagedOutOfService {
+        println("$name | GUASTO RILEVATO DURANTE ENGAGED!") color magenta
+        [# 
+            IsOutOfService = true
+            
+            // Release dello slot che era stato prenotato
+            if (CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+            
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'OUT_OF_SERVICE'"
+            var MsgStr = "'Guasto sensore durante attesa'"
+            var LedRed = "'red'"
+            var ServiceDown = "'OUT_OF_SERVICE'"
+        #]
+        forward ioport -m led : led($LedRed)
+        forward ioport -m updateWorkingState : updateWorkingState($ServiceDown)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
+    }
+    Goto outOfServiceState
+
+    State handleTimeout {
+        println("$name | TIMEOUT scaduto! Container non rilevato entro 30s.") color magenta
+        [# 
+            if (CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'DISENGAGED'"
+            var TimeoutMsgStr = "'Timer scaduto (30s)'"
+        #]
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $TimeoutMsgStr)
+    }
+    Goto idle
+    
+    State handleContainer {
+        println("$name | Container rilevato -> aggiornamento slot a OCCUPIED") color magenta
+        [# 
+            if (CurrentReservedSlot != -1) {
+                h.setSlotOccupied(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'LOADED'"
+            var LoadedMsgStr = "'Container preso in carico'"
+        #]
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $LoadedMsgStr)
+    }
+    Goto idle
+    
+    State handleOutOfService {
+        println("$name | ERRORE SENSORE: Ingresso in Out Of Service") color magenta
+        [# 
+            IsOutOfService = true
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'OUT_OF_SERVICE'"
+            var MsgStr = "'Guasto sensore'"
+            var LedRed = "'red'"
+            var ServiceDown = "'OUT_OF_SERVICE'"
+        #]
+        forward ioport -m led : led($LedRed)
+        forward ioport -m updateWorkingState : updateWorkingState($ServiceDown)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
+    }
+    Goto outOfServiceState
+
+    State outOfServiceState {
+        println("$name | Sistema BLOCCO: Out Of Service") color magenta
+    }
+    Transition t2
+        whenRequest loadrequest -> handleRejectOutOfService
+
+    State handleRejectOutOfService {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var CurrentHoldState = h.getHoldStateString()
+                var CauseStr = "'out_of_service'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($CauseStr, $CurrentHoldState)
+        }
+    }
+    Goto outOfServiceState
+}

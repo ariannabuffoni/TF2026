@@ -129,16 +129,15 @@ containers and a slot named <b>slot5</b>.
 		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI. Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core ed è modellato come un <a href="#actor_vs_pojo">attore</a>. 
 			<ul>
 				<li>Il suo componente di input (pushbotton) è un elemento reattivo che cattura l'interazione del cliente (pressione del pulsante) e la traduce in una richiesta formale di carico (loadrequest) indirizzata verso il sistema</li>
-				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e i messaggi operativi critici ("Service working" o "Out of service").</li>
+				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e lo stato del sistema:"Service working" o "Out of service".</li>
 			</ul> 
 			Vengono formalizzati quindi i 
 			<a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#section.17.6" target="_blank">messaggi</a>
 			necessari sotto forma di stringhe:
 			<pre>
-msg(loadrequest, dispatch, ioport, cargoservice, CONTAINER, N)
-msg(hold_status, dispatch, cargoservice, ioport, SLOT_STATES, N)
-msg(working, dispatch, cargoservice, ioport, SLOT, N)
-msg(outOfService, dispatch, cargoservice, ioport, CAUSE, N)
+msg(button_pushed, dispatch, webgui, ioport, X, N)
+msg(hold_status, dispatch, ioport, webgui, SLOT_STATES, N)
+msg(working_state, dispatch, ioport, webgui, STATE, N)
 </pre>
 		</p>
 		</div>
@@ -452,54 +451,66 @@ QActor cargoservice context ctxcargoservice{
 
 <p>
 	<h2>TEST PLAN</h2>
-	 Il piano di test per questa fase iniziale di Sprint 0 ha l'obiettivo di verificare formalmente la correttezza logica dei componenti isolabili del sistema prima di procedere allo sviluppo dell'architettura distribuita. <br>
-	 Nello specifico, l'attenzione è focalizzata sulla convalida della struttura dati Hold, in quanto rappresenta il nucleo informativo su cui si basano le decisioni di accettazione o rifiuto delle richieste di carico da parte dell'orchestratore.<br>
+	Il piano di test per questa fase iniziale di Sprint 0 ha l'obiettivo di verificare formalmente la correttezza logica dei componenti isolabili del sistema prima di procedere allo sviluppo dell'architettura distribuita. <br/>
+	 Nello specifico, l'attenzione è focalizzata sulla convalida della struttura dati Hold, in quanto rappresenta il nucleo informativo su cui si basano le decisioni di accettazione o rifiuto delle richieste di carico da parte dell'orchestratore.<br/>
 	 I test automatizzati sono progettati per validare i seguenti scenari operativi derivati direttamente dalle specifiche dei requisiti:
 	 <ul>
-		<li>verifica di allocazione iniziale: accertarsi che a stiva vuota il sistema assegni lo slot corretto seguendo rigidamente l'ordine di sequenza.</li>
-		<li>gestione della saturazione: verificare che lo stato della stiva commuti correttamente in "piena" una volta occupati tutti gli spazi disponibili. </li>
-		<li>protezione da sovrallocazione: garantire che ogni tentativo di prenotazione fallisca (ritornando un valore nullo) nel momento in cui la stiva ha esaurito la propria capacità.</li>
-		<li>inibizione di doppia prenotazione: assicurare che il sistema gestisca una sola transazione attiva alla volta, impedendo l'assegnazione simultanea di slot multipli prima che il carico precedente sia stato effettivamente confermato. </li>
+		<li>Verifica di allocazione iniziale e sequenziale: Accertarsi che a stiva vuota il sistema assegni lo slot 1 e che chiamate successive riservino gli slot in rigido ordine sequenziale (da 1 a 4).</li>
+		<li>Gestione della saturazione: Verificare che il metodo isFull() commuti correttamente su true una volta che tutti e 4 gli slot principali si trovano nello stato RESERVED o OCCUPIED.</li>
+		<li>Protezione da sovrallocazione: Garantire che ogni tentativo di prenotazione fallisca (ritornando il valore identificativo -1 / NO_SLOT_AVAILABLE) nel momento in cui la stiva ha esaurito la propria capacità.</li>
+		<li>Transizione di stato degli slot: Verificare la corretta evoluzione del ciclo di vita di ciascun alloggiamento (da FREE a RESERVED, fino a OCCUPIED o al ripristino a FREE in caso di rilascio/timeout). </li>
 	 </ul>
 	 Di seguito viene riportata la suite di test funzionali per il componente Hold:
 	<pre>
-class HoldTest {
+public class HoldTest {
     private Hold hold;
 
-    @BeforeEach
-    void init() {
+    @Before
+    public void init() {
         hold = new Hold();
     }
 
-    @Test // T1.1: Allocazione iniziale corretta
-    void testInitialAllocation() {
-        assertEquals("slot1", hold.allocateSlot());
+    @Test
+    public void testSequentialReservation() {
+        assertEquals(1, hold.reserveNextFreeSlot());
+        assertEquals(2, hold.reserveNextFreeSlot());
+        assertEquals(Hold.SlotState.RESERVED, hold.getSlotState(1));
+        assertEquals(Hold.SlotState.RESERVED, hold.getSlotState(2));
     }
 
-    @Test // T1.2: Riconoscimento stiva piena
-    void testStowageFullCondition() {
-        for (int i = 0; i < Hold.MAX_SLOTS; i++) {
-            hold.allocateSlot();
-            hold.confirmAllocation(i);
+    @Test
+    public void testIsFullCondition() {
+        assertFalse(hold.isFull());
+        for (int i = 0; i < Hold.NUM_MAIN_SLOTS; i++) {
+            hold.reserveNextFreeSlot();
         }
-        assertTrue(hold.isStorageFull());
+        assertTrue(hold.isFull());
     }
 
-    @Test // T1.3: Rifiuto allocazione su stiva piena
-    void testAllocationFailureWhenFull() {
-        for (int i = 0; i < Hold.MAX_SLOTS; i++) {
-            hold.allocateSlot();
-            hold.confirmAllocation(i);
+    @Test
+    public void testReservationFailureWhenFull() {
+        for (int i = 0; i < Hold.NUM_MAIN_SLOTS; i++) {
+            hold.reserveNextFreeSlot();
         }
-        assertNull(hold.allocateSlot());
+        assertEquals(Hold.NO_SLOT_AVAILABLE, hold.reserveNextFreeSlot());
     }
 
-    @Test // T1.4: Multi-prenotazione consecutiva protetta
-    void testSequentialBooking() {
-        String first = hold.allocateSlot(); // Prenota slot1 (BOOKED)
-        String second = hold.allocateSlot(); // Prenota slot2
-        assertEquals("slot1", first);
-        assertEquals("slot2", second);
+    @Test
+    public void testSlotStateTransition() {
+        int reservedSlot = hold.reserveNextFreeSlot();
+        assertEquals(1, reservedSlot);
+        assertEquals(Hold.SlotState.RESERVED, hold.getSlotState(1));
+
+        hold.setSlotOccupied(reservedSlot);
+        assertEquals(Hold.SlotState.OCCUPIED, hold.getSlotState(1));
+    }
+
+    @Test
+    public void testReleaseSlot() {
+        int reservedSlot = hold.reserveNextFreeSlot();
+        hold.releaseSlot(reservedSlot);
+        assertEquals(Hold.SlotState.FREE, hold.getSlotState(reservedSlot));
+        assertFalse(hold.isFull());
     }
 }
 	</pre>
