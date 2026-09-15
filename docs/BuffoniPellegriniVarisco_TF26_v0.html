@@ -128,7 +128,7 @@ containers and a slot named <b>slot5</b>.
         <h3>IOPort</h3>
 		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI. Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core ed è modellato come un <a href="#actor_vs_pojo">attore</a>. 
 			<ul>
-				<li>Il suo componente di input (pushbotton) è un elemento reattivo che cattura l'interazione del cliente (pressione del pulsante) e la traduce in una richiesta formale di carico (loadrequest) indirizzata verso il sistema</li>
+				<li>Il suo componente di input (pushbotton) è un elemento reattivo che cattura l'interazione del cliente (pressione del pulsante) e la traduce in una richiesta formale di carico (button_pushed) indirizzata verso il sistema</li>
 				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e lo stato del sistema:"Service working" o "Out of service".</li>
 			</ul> 
 			Vengono formalizzati quindi i 
@@ -312,10 +312,10 @@ System cargoservice
  */
  
 // -----definizione dei messaggi-----
-Request loadrequest : loadrequest(C)
-Reply retrylater : retrylater(CAUSE) for loadrequest
-Reply reject : reject(R) for loadrequest
-Reply engaged : engaged(RESERVED_SLOT) for loadrequest
+Request loadrequest     : loadrequest(IOPORT_STATE)
+Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject            : reject(HOLD_STATE) for loadrequest
+Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
 
 // -----definizione del contesto-----
 Context ctxcargoservice ip [host="localhost" port=8120]
@@ -565,7 +565,7 @@ public class HoldTest {
 	</ul>     
 	La scelta di questo specifico sottoinsieme permette di testare l'intera logica di controllo del servizio senza dipendere dai movimenti del cargorobot o dai dati del sonar. Verificare che gli stati interni cambino correttamente all'inizio garantisce una base solida prima di passare al sistema distribuito reale. <br>
 	<b>Goal dello Sprint 1</b><br>
-	Sviluppare un prototipo software funzionante incentrato sul componente cargoservice. Il sistema dovrà essere in grado di elaborare stimoli di input fittizi (che simulano la pressione del pulsante della IOPort, <i>loadrequest</i>), aggiornare coerentemente lo stato di occupazione degli slot della stiva (<i>hold_status</i>) e governare i cicli di temporizzazione per il disimpegno del sistema.
+	Sviluppare un prototipo software funzionante incentrato sul componente cargoservice. Il sistema dovrà essere in grado di elaborare stimoli di input fittizi (che simulano la pressione del pulsante della IOPort, <i>button_pushed</i>), aggiornare coerentemente lo stato di occupazione degli slot della stiva (<i>hold_status</i>) e governare i cicli di temporizzazione per il disimpegno del sistema.
 </p>
 </div>
 

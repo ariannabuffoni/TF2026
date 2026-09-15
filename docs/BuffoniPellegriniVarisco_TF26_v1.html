@@ -20,7 +20,7 @@
 <div class="body">
 <p><b>Goal Sprint1: </b> 
 Sviluppare un prototipo software funzionante incentrato sul componente cargoservice. Il sistema dovrà essere in grado di elaborare stimoli di input fittizi 
-(che simulano la pressione del pulsante della IOPort, <i>loadrequest</i>), aggiornare coerentemente lo stato di occupazione degli slot della stiva (<i>hold_status</i>)
+(che simulano la pressione del pulsante della IOPort, <i>button_pushed</i>), aggiornare coerentemente lo stato di occupazione degli slot della stiva (<i>hold_status</i>)
 e governare i cicli di temporizzazione per il disimpegno del sistema.
 </p>
 
@@ -554,7 +554,6 @@ QActor ioport context ctxcargoservice {
     Goto acceptEvents
 }
         </pre>
-        <p><i>Osservazione su ioport:</i> in questa fase del progetto, poiché si è inserita nella GUI un mock di sensore e di led, ioport è stato reso responsabile anche della loro gestione. In uno Sprint successivo, le cose verranno disaccoppiate.</p>
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
@@ -700,7 +699,7 @@ public class IOPortWsAdapter {
             <tbody>
                 <!-- Riga 1 -->
                 <tr style="background-color: #ffffff;">
-                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">8050</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">8120</td>
                     <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;"><code>ctxcargoservice</code> (Runtime QAk)</td>
                     <td style="padding: 10px; border: 1.5px solid #a394ff;"><b>TCP grezzo</b>: porta di ascolto infrastrutturale del contesto QAk. Nello Sprint 1 entrambi gli attori convivono nello stesso processo locale, ma la porta resta aperta a supporto delle future comunicazioni remote tra contesti distribuiti.</td>
                 </tr>
