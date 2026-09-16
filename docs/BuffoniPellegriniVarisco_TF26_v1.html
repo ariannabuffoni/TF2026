@@ -228,7 +228,7 @@ Dispatch led            : led(STATE)
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>L'attore cargoservice</h3>
+        <h3>L'attore <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1/src/sprint1.qak" target="_blank">cargoservice</a></h3>
         <p>
             L'attore gestisce la logica di business e governa il timeout di 30 secondi per la transizione tra gli stati idle, engaged e disengaged. Incapsula l'oggetto Hold mediante la direttiva withobj.
         </p>
@@ -425,7 +425,7 @@ QActor cargoservice context ctxcargoservice
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>L'attore ioport</h3>
+        <h3>L'attore <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1/src/sprint1.qak" target="_blank">ioport</a></h3>
         <p>
             L'attore funge da mediatore: reagisce agli stimoli provenienti dalla Web GUI tramite l'adapter, invia la richiesta a cargoservice, e riceve le notifiche di aggiornamento.
         </p>
@@ -557,7 +557,7 @@ QActor ioport context ctxcargoservice {
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>L'adattatore WebSocket: IOPortWsAdapter</h3>
+        <h3>L'adattatore WebSocket: <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1/utils/ioport/IOPortWsAdapter.java" target="_blank">IOPortWsAdapter</a></h3>
         <p>
             L'adapter avvia un server Javalin su porta 7070, serve le pagine statiche della GUI e gestisce la connessione WebSocket:
         </p>
@@ -721,6 +721,9 @@ public class IOPortWsAdapter {
         <div style="text-align: center; margin-top: 15px;">
             <img src="./img/ioport_gui.png" alt="Interfaccia Web IOPort GUI" style="width: 50%; max-width: 600px; height: auto; border: 1.5px solid #d5f2ed; border-radius: 6px;">
         </div>
+        <p>
+            Per testare il funzionamento completo di cargoservice si è scelto di adottare un mock. L'implementazione del sensore e del led sarà inserita in uno Sprint successivo.
+        </p>
     </div>
 
 </div>

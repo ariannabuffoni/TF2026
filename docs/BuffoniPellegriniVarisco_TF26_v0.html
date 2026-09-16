@@ -126,7 +126,7 @@ containers and a slot named <b>slot5</b>.
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>IOPort</h3>
-		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI. Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core ed è modellato come un <a href="#actor_vs_pojo">attore</a>. 
+		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI. Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core ed è modellato come un <a href="#actor_vs_pojo">attore</a>. Inoltre tiene traccia del tempo trascorso dall'ultima distanza minore di DFREE. 
 			<ul>
 				<li>Il suo componente di input (pushbotton) è un elemento reattivo che cattura l'interazione del cliente (pressione del pulsante) e la traduce in una richiesta formale di carico (button_pushed) indirizzata verso il sistema</li>
 				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e lo stato del sistema:"Service working" o "Out of service".</li>
@@ -278,15 +278,6 @@ QActor marker context ctxcargoservice{
 		<p>Rappresenta un componente software passivo implementato come un oggetto Java puro (<a href="#actor_vs_pojo">POJO</a>) che funge da mappa logica in memoria dello stato della stiva. Modella e traccia la situazione dei quattro slot di deposito principali (slot 1-4) e dello slot 5 temporaneo. Ciascun alloggiamento viene catalogato attraverso tre stati logici ben definiti: <i>free</i> (disponibile),
 		<i>reserved</i> (assegnato a una richiesta accettata, ma non ancora occupato fisicamente dal container) e <i>occupied</i> (container depositato). L'entità incapsula la logica 
 		algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata una nuova richiesta di accesso. </p>
-
-		<p><b style="color: #5638fd;">HOME</b><br>
-    	La HOME rappresenta la posizione iniziale in cui il DDR si trova all'interno della stiva e posizione finale del percorso lungo il perimetro.<br>
-		Per formalizzare questa informazione, si sceglie di modellare la stiva come un rettangolo in un piano euclideo con base B e altezza H espresse in metri. Introducendo gli assi cartesiani, ogni posizione è indicata da una coppia di coordinate X e Y. Tuttavia, poiché il robot non è un punto ma occupa un'area che assumiamo quadrata di lato R, si rappresenta la stiva come una griglia misurata in unità robotiche, dove ogni cella corrisponde a un'unità.<br>
-		HOME viene quindi formalizzata come un'area in grado di contenere il robot, ovvero una cella predefinta all'interno della griglia che mappa la stiva.</p>
-    
-    	<div style="text-align: center; margin-top: 10px;">
-        	<img src="./img/stanzaDDR.drawio.png" alt="Griglia della stanza e posizione HOME" width="20%" height="20%">
-   		</div>
 		
 		</div>
 
@@ -368,13 +359,13 @@ QActor cargoservice context ctxcargoservice{
         </tr>
         <tr style="background-color: #f7f9ff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">service working</td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff;">Robot in azione. Movimentazione o marcatura in corso</td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Lampeggiante</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Funzionamento atteso</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Spento/Lampeggiante</td>
         </tr>
         <tr style="background-color: #ffffff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">out of service</td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">Rilevata anomalia persistente sul sonar. Sistema bloccato</td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Spento / Rosso</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">Rosso</td>
         </tr>
     </tbody>
 </table>
