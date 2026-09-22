@@ -30,7 +30,7 @@ class Ioport ( name: String, scope: CoroutineScope, isconfined: Boolean=false, i
 		//val interruptedStateTransitions = mutableListOf<Transition>()
 		//IF actor.withobj !== null val actor.withobj.name� = actor.withobj.method�ENDIF
 		
-				var IoportState 
+				var IoportState = false
 		return { //this:ActionBasciFsm
 				state("s0") { //this:State
 					action { //it:State
@@ -39,47 +39,79 @@ class Ioport ( name: String, scope: CoroutineScope, isconfined: Boolean=false, i
 					}
 					//After Lenzi Aug2002
 					sysaction { //it:State
+				 	 		stateTimer = TimerActor("timer_s0", 
+				 	 					  scope, context!!, "local_tout_"+name+"_s0", 3000.toLong() )  //OCT2023
 					}	 	 
-					 transition(edgeName="t05",targetState="handleButton",cond=whenDispatch("button_pushed"))
+					 transition(edgeName="t02",targetState="pushButtonLibera",cond=whenTimeout("local_tout_"+name+"_s0"))   
 				}	 
-				state("handleButton") { //this:State
+				state("pushButtonLibera") { //this:State
 					action { //it:State
+						
+									IoportState =  false
+						CommUtils.outblue("$name | invio loadrequest a cargoservice, ioport libera")
 						request("loadrequest", "loadrequest($IoportState)" ,"cargoservice" )  
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t16",targetState="handleEngaged",cond=whenReply("engaged"))
-					transition(edgeName="t17",targetState="handleReject",cond=whenReply("reject"))
-					transition(edgeName="t18",targetState="handleRetryLater",cond=whenReply("retrylater"))
+					 transition(edgeName="t13",targetState="handleEngaged",cond=whenReply("engaged"))
+					transition(edgeName="t14",targetState="handleReject",cond=whenReply("reject"))
+					transition(edgeName="t15",targetState="handleRetryLater",cond=whenReply("retrylater"))
+				}	 
+				state("pushButtonOccupata") { //this:State
+					action { //it:State
+						
+									IoportState = true
+						CommUtils.outblue("$name | invio loadrequest a cargoservice, ioport occupata")
+						request("loadrequest", "loadrequest($IoportState)" ,"cargoservice" )  
+						//genTimer( actor, state )
+					}
+					//After Lenzi Aug2002
+					sysaction { //it:State
+					}	 	 
+					 transition(edgeName="t26",targetState="handleEngaged",cond=whenReply("engaged"))
+					transition(edgeName="t27",targetState="handleReject",cond=whenReply("reject"))
+					transition(edgeName="t28",targetState="handleRetryLater",cond=whenReply("retrylater"))
 				}	 
 				state("handleEngaged") { //this:State
 					action { //it:State
+						CommUtils.outblue("$name in ${currentState.stateName} | $currentMsg | ${Thread.currentThread().getName()} n=${Thread.activeCount()}")
+						 	   
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002
 					sysaction { //it:State
+				 	 		stateTimer = TimerActor("timer_handleEngaged", 
+				 	 					  scope, context!!, "local_tout_"+name+"_handleEngaged", 3000.toLong() )  //OCT2023
 					}	 	 
-					 transition( edgeName="goto",targetState="s0", cond=doswitch() )
+					 transition(edgeName="t39",targetState="pushButtonOccupata",cond=whenTimeout("local_tout_"+name+"_handleEngaged"))   
 				}	 
 				state("handleReject") { //this:State
 					action { //it:State
+						CommUtils.outblue("$name in ${currentState.stateName} | $currentMsg | ${Thread.currentThread().getName()} n=${Thread.activeCount()}")
+						 	   
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002
 					sysaction { //it:State
+				 	 		stateTimer = TimerActor("timer_handleReject", 
+				 	 					  scope, context!!, "local_tout_"+name+"_handleReject", 3000.toLong() )  //OCT2023
 					}	 	 
-					 transition( edgeName="goto",targetState="s0", cond=doswitch() )
+					 transition(edgeName="t410",targetState="pushButtonOccupata",cond=whenTimeout("local_tout_"+name+"_handleReject"))   
 				}	 
 				state("handleRetryLater") { //this:State
 					action { //it:State
+						CommUtils.outblue("$name in ${currentState.stateName} | $currentMsg | ${Thread.currentThread().getName()} n=${Thread.activeCount()}")
+						 	   
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002
 					sysaction { //it:State
+				 	 		stateTimer = TimerActor("timer_handleRetryLater", 
+				 	 					  scope, context!!, "local_tout_"+name+"_handleRetryLater", 3000.toLong() )  //OCT2023
 					}	 	 
-					 transition( edgeName="goto",targetState="s0", cond=doswitch() )
+					 transition(edgeName="t511",targetState="pushButtonLibera",cond=whenTimeout("local_tout_"+name+"_handleRetryLater"))   
 				}	 
 			}
 		}

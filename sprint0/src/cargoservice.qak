@@ -1,0 +1,110 @@
+System cargoservice
+
+/*
+ * MODELLO DELL'ANALISTA DEI REQUISITI
+ */
+ 
+// -----definizione dei messaggi-----
+Request loadrequest     : loadrequest(IOPORT_STATE)
+Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject            : reject(HOLD_STATE) for loadrequest
+Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+
+// -----definizione del contesto-----
+Context ctxcargoservice ip [host="localhost" port=8120]
+
+// -----definizione degli attori-----
+QActor cargoservice context ctxcargoservice{
+	[#
+		var HOLD_FULL = false
+	#]
+	State s0 initial{
+		println("$name | starts ") color magenta
+	}
+	Transition t0 
+		whenRequest loadrequest -> handleLoadRequest
+
+	State handleLoadRequest{
+		onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var IoportState = payloadArg(0).toBoolean()
+                
+                if (IoportState) {
+                	var Cause = "porta_occupata"
+                    #] 
+                    replyTo loadrequest with retrylater : retrylater($Cause, $HOLD_FULL)
+                    println("$name | retrylater($Cause, $HOLD_FULL)") color magenta 
+                    [#
+                } else if (HOLD_FULL) {
+                    #] 
+                    replyTo loadrequest with reject : reject($HOLD_FULL) 
+                    println("$name | reject($HOLD_FULL)") color magenta
+                    [#
+                } else {
+                    HOLD_FULL = true
+                    var Slot = "slot1"
+                    #] 
+                    replyTo loadrequest with engaged : engaged($Slot, $HOLD_FULL)
+                    println("$name | engaged($Slot, $HOLD_FULL)") color magenta
+                    [#
+                }
+            #]
+        }
+	}
+	Transition t0 
+		whenRequest loadrequest -> handleLoadRequest
+}
+
+QActor ioport context ctxcargoservice{
+	[#
+		var IoportState = false
+	#]
+	State s0 initial{
+		println("$name | starts ") color blue
+	}
+	Transition t0
+		whenTime 3000 -> pushButtonLibera
+		
+	State pushButtonLibera{
+		[#
+			IoportState =  false
+		#]
+		println("$name | invio loadrequest a cargoservice, ioport libera") color blue
+		request cargoservice -m loadrequest : loadrequest($IoportState)
+	}
+	Transition t1 
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
+        
+    State pushButtonOccupata{
+		[#
+			IoportState = true
+		#]
+		println("$name | invio loadrequest a cargoservice, ioport occupata") color blue
+		request cargoservice -m loadrequest : loadrequest($IoportState)
+	}
+	Transition t2 
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
+    
+    State handleEngaged{
+    	printCurrentMessage color blue
+    }
+    Transition t3
+    	whenTime 3000 -> pushButtonOccupata
+    
+    State handleReject{
+    	printCurrentMessage color blue
+    }
+    Transition t4
+    	whenTime 3000 -> pushButtonOccupata
+    
+    State handleRetryLater{
+    	printCurrentMessage color blue
+    }
+    Transition t5
+    	whenTime 3000 -> pushButtonLibera
+    
+}

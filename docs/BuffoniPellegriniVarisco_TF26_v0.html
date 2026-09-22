@@ -116,168 +116,68 @@ containers and a slot named <b>slot5</b>.
 			<a href="#actor_vs_pojo">attore</a>.
 			Riceve ed esegue i comandi di macro-movimentazione inviati dall'orchestratore centrale per spostarsi sequenzialmente tra l'IOPort, lo slot 5 e gli alloggiamenti finali (slot 1-4).<br> 
 			Il committente ha messo a disposizione più varianti di <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.25" target="_blank">VirtualRobot26</a>: <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.30" target="_blank">RobotSmart26</a>, <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.27" target="_blank">RobotService26</a>, <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.26" target="_blank">RobotObj26</a>. 
-			Si sceglie di utilizzare RobotSmart26 in quanto permette di colmare maggiormente l'abstraction gap e fornisce un ambiente virtuale in cui visualizzare i movimenti del robot. 
-			Questo modulo solleva il nostro software dall'onere di calcolare i comandi di movimento di basso livello (avanza, ruota, stop), poiché riceve in input le coordinate cartesiane di destinazione e calcola autonomamente il percorso ottimale sulla griglia. La responsabilità dell'orchestrazione logica della missone rimane tuttavia in capo al cargorobot. 
-			<!-- Secondo me qui bisogna mettere una breve descrizione dei vari DDR che abbiamo visto nel corso (VirtualRobot26, RobotObj26, RobotService26, RobotSmart26)
-			 e poi concludere con quale è il più adatto per questo progetto e che quindi andremo ad usare (io credo la risposta sia RobotSmart26, ma non ho letto tutta la documentazione, ho scelto a sentimento)
-			 Credo che smartRobot26 fornisca anche la mappa mentale e cose simili quindi ci si può ricollegare con la stiva
-			 METTERE IL LINK!!!!-->
+			Si valuta di utilizzare RobotSmart26 in quanto come servizio permette di colmare maggiormente l'abstraction gap e fornisce un ambiente virtuale in cui visualizzare i movimenti del robot (che coincide con quanto richiesto nei requisiti). 
+			Questo modulo solleva il nostro software dall'onere di calcolare i comandi di movimento di basso livello (avanza, ruota, stop), poiché riceve in input le coordinate cartesiane di destinazione e calcola autonomamente il percorso ottimale sulla griglia.
 		</p></div>
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>IOPort</h3>
-		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI. Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core ed è modellato come un <a href="#actor_vs_pojo">attore</a>. Inoltre tiene traccia del tempo trascorso dall'ultima distanza minore di DFREE. 
+		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI (come indicato dal committente). Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core ed è modellato come un <a href="#actor_vs_pojo">attore</a>.  
 			<ul>
 				<li>Il suo componente di input (pushbotton) è un elemento reattivo che cattura l'interazione del cliente (pressione del pulsante) e la traduce in una richiesta formale di carico (button_pushed) indirizzata verso il sistema</li>
 				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e lo stato del sistema:"Service working" o "Out of service".</li>
 			</ul> 
 			Vengono formalizzati quindi i 
-			<a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#section.17.6" target="_blank">messaggi</a>
-			necessari sotto forma di stringhe:
+			<a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#section.17.6" target="_blank">messaggi</a>:
 			<pre>
-msg(button_pushed, dispatch, webgui, ioport, X, N)
-msg(hold_status, dispatch, ioport, webgui, SLOT_STATES, N)
-msg(working_state, dispatch, ioport, webgui, STATE, N)
+Request loadrequest     : loadrequest(IOPORT_STATE)
+Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject            : reject(HOLD_STATE) for loadrequest
+Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
 </pre>
 		</p>
 		</div>
 		
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Sensore / Sonar</h3>
-		<p>Si tratta di un'entità software proattiva (<a href="#actor_vs_pojo">attore</a>) che rappresenta un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento continuo dello spazio antistante, calcolando la distanza D dall'ostacolo più vicino. Questo software di basso livello trasmette i dati grezzi sottoforma di stringhe
-		formattate come distance(DIRECTION, D) per consentire la verifica dei vincoli temporali e di soglia del sistema:</p> 
+		<p>
+			Si tratta di un'entità software proattiva (<a href="#actor_vs_pojo">attore</a>) che rappresenta un dispositivo fisico di telemetria posizionato strategicamente in corrispondenza dell'area di accesso dell'IOPort. Effettua un campionamento continuo dello spazio antistante, calcolando la distanza D dall'ostacolo più vicino. Questo software di basso livello trasmette i dati grezzi sottoforma di stringhe
+			formattate come distance(DIRECTION, D) per consentire la verifica dei vincoli temporali e di soglia del sistema:</p> 
 			<ul>
 				<li>se una misurazione D &lt;
 			DFREE/2 persiste per un intervallo temporale ragionevole (es. almeno 3 secondi), viene validata la presenza fisica di un carico da elaborare; </li>
 			<li>se una misurazione D &gt DFREE persiste per più di 3 secondi, viene notificata una condizione di potenziale
 			guasto hardware (stato Out of service).</li>
 			</ul> 
-			Per far sì che le informazioni possano essere utilizzate dal sistema, è necessario formalizzare il metodo con cui questi dati sono accessibili. Ci sono due opzioni:
-			<ol>
-				<li>
-					può essere il sensore a comunicare, tramite un evento (poiché non conosce a priori il destinatario dell'informazione), la distanza rilevata. In questo caso formalizzo il seguente attore:
-					<pre>
-System cargoservice
-
-/*
- * MODELLO DELL'ANALISTA
- */
- 
-// -----definizione dei messaggi-----
-Event sonar : distance(D)
-
-// -----definizione del contesto-----
-Context ctxcargoservice ip [host="localhost" port=8120]
-
-// -----definizione degli attori-----
-QActor sonar context ctxcargoservice {
-	[# 
-		var D = 0
-		var Timer = 1000L
-	 #]
-	State s0 initial {
-		println("$name | start") color green
-	}
-	Goto rileva_distanza
-	
-	State rileva_distanza{
-		// rilevamento della distanza D (in metri)
-		emit sonar : distance(D)
-	}
-	Transition t0 
-		whenTimeVar Timer -> rileva_distanza
-}
-					</pre>
-				</li>
-				<li>
-					altrimenti, il sonar potrebbe comunicare a distanza rilevata in risposta ad una richiesta del sistema. In questo caso formalizzo il seguente attore:
-					<pre>
-System cargoservice
-
-/*
- * MODELLO DELL'ANALISTA
- */
- 
-// -----definizione dei messaggi-----
-Request getDistance : getDistance(D) "richiesta del sistema"
-Reply   sonar : distance(D)   for getDistance
-
-// -----definizione del contesto-----
-Context ctxcargoservice ip [host="localhost" port=8120]
-
-// -----definizione degli attori-----
-QActor sonar context ctxcargoservice {
-	[# 
-		var D = 0
-		var Timer = 1000L
-	 #]
-	State s0 initial {
-		println("$name | start") color green
-	}
-	Goto rileva_distanza
-	
-	State rileva_distanza{
-		// rilevamento della distanza D (in metri)
-	}
-	Transition t0 
-		whenTimeVar Timer -> rileva_distanza
-		whenRequest getDistance -> handleRequest
-   
-	State handleRequest{
- 		onMsg( getDistance : getDistance(D) ){
- 			replyTo getDistance with sonar : distance( $D )  
- 		} 
-	}  
-	Transition t0 
-		whenTimeVar Timer -> rileva_distanza
-}
-					</pre>
-				</li>
-			</ol>
-		<p><i>Domanda al committente: il software che gestisce il sonar è già disponibile?</i></p> <!-- al posto di questo potremmo mettere la formalizzazione in QAK e le due opzioni di comunicazione con evento o con risposta a richiesta-->
+			Dopo aver parlato con il committente si è stabilito che il sonar è un dispositivo fisico collegato ad un Pico W. Ciò rende il sistema distribuito ed eterogeneo.
 		</div>
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Dispositivo Marker (Slot 5)</h3>
-		<p>Si tratta di un dispositivo di scansione e identificazione localizzato in corrispondenza dello slot 5, modellato come <a href="#actor_vs_pojo">attore</a>, l'area riservata alla sosta temporanea.<br>
-		Si attiva non appena viene segnalata la deposizione di un container nello slot 5, avviando un'operazione automatica di etichettatura per applicare un codice a barre identificativo sul carico. Il dispositivo trattiene logicamente il flusso operativo per un tempo fisso (durata della marcatura) e, una volta completata l'operazione, genera un messaggio di notifica. Trattandosi di un'entità integrata nello stesso nodo logico di cargoservice, questo messaggio di sblocco viene trasmesso internamente per segnalare al robot che può prelevare il container marcato e procedere verso la destinazione finale.</p>
-<pre>
-System cargoservice
+		<p>
+			Si tratta di un dispositivo di scansione e identificazione localizzato in corrispondenza dello slot 5, modellato come <a href="#actor_vs_pojo">attore</a>, l'area riservata alla sosta temporanea.<br>
+			Si attiva non appena viene segnalata la deposizione di un container nello slot 5, avviando un'operazione automatica di etichettatura per applicare un codice a barre identificativo sul carico. Una volta completata l'operazione, genera un messaggio di notifica.
+		</p>
 
-/*
- * MODELLO DELL'ANALISTA
- */
- 
-// -----definizione dei messaggi-----
-Dispatch storeContainer : storeContainer(C)
-Dispatch markingDone : markingDone(C)
-
-// -----definizione del contesto-----
-Context ctxcargoservice ip [host="localhost" port=8120]
-
-// -----definizione degli attori-----
-QActor marker context ctxcargoservice{
-	State s0 initial{
-		println("$name | starts ") color blue
-	}
-	Transition t0 
-		whenMsg storeContainer -> marking
-
-	State marking{
-		// logica di marcatura del container
-		forward cargorobot -m markingDone : markingDone(0)
-	}
-	Transition t0 
-		whenMsg storeContainer -> marking
-}
-</pre>
 		</div>
 
 		<div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Stiva (Hold)</h3>
-		<p>Rappresenta un componente software passivo implementato come un oggetto Java puro (<a href="#actor_vs_pojo">POJO</a>) che funge da mappa logica in memoria dello stato della stiva. Modella e traccia la situazione dei quattro slot di deposito principali (slot 1-4) e dello slot 5 temporaneo. Ciascun alloggiamento viene catalogato attraverso tre stati logici ben definiti: <i>free</i> (disponibile),
-		<i>reserved</i> (assegnato a una richiesta accettata, ma non ancora occupato fisicamente dal container) e <i>occupied</i> (container depositato). L'entità incapsula la logica 
-		algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata una nuova richiesta di accesso. </p>
+		<p>
+			La mappa fornita da RobotSmart26 ha le informazioni legate alla topologia degli slot, ma non ha nessuna nozione dello stato. 
+			Perciò sarà necessario un componente software passivo modellabile come un oggetto Java puro (<a href="#actor_vs_pojo">POJO</a>) che tiene traccia in memoria dello stato della stiva. Modella e traccia la situazione dei quattro slot di deposito principali (slot 1-4) e dello slot 5 temporaneo. Ciascun alloggiamento viene catalogato attraverso tre stati logici ben definiti: <i>free</i> (disponibile),
+			<i>reserved</i> (assegnato a una richiesta accettata, ma non ancora occupato fisicamente dal container) e <i>occupied</i> (container depositato).
+			Lo stato viene formalizzato come segue:
+			<pre>
+public enum SlotState {
+    FREE,
+    RESERVED,
+    OCCUPIED
+}
+</pre> 
+			L'entità incapsula la logica algoritmica per determinare se la stiva è satura (isFull()) e individua e riserva il primo slot disponibile in ordine sequenziale non appena viene convalidata una nuova richiesta di accesso. <br/>
+			Come la topologia fornita da RobotSmart26 e lo stato degli slot saranno messi in relazione tra loro verrà analizzato in una fase successiva.
+		</p>
 		
 		</div>
 
@@ -286,7 +186,33 @@ QActor marker context ctxcargoservice{
 		<p>
 			Rappresenta un'entità software passiva di output associata a un attuatore luminoso fisico. La sua responsabilità è quella di fornire una segnalazione visiva immediata dello stato operativo del sistema verso l'esterno.
 			Il suo comportamento è strettamente legato alle transizioni di stato del servizio centrale: deve attivare la modalità lampeggiante per indicare che il sistema si trova in uno stato di impegno (engaged), 
-			mantenendo questo comportamento durante tutte le fasi di trasferimento dei container.
+			mantenendo questo comportamento durante tutte le fasi di trasferimento dei container.<br/>
+			Dopo aver parlato con il committente si è stabilito che il led è quello presente sul Pico W. Ciò rende necessario modellare il componente come <a href="#actor_vs_pojo">attore</a>, in quanto si troverà sullo stesso nodo e contesto del sonar e dovrà accedere alla rete per comunicare con il resto dell'applicazione.
+			<pre>
+System pico
+
+/*
+ * MODELLO DELL'ANALISTA DEI REQUISITI
+ */
+ 
+// -----definizione dei messaggi-----
+
+// -----definizione del contesto-----
+Context ctxpico ip [host="localhost" port=8170]
+
+// -----definizione degli attori-----
+QActor sonar context ctxpico {
+	State s0 initial {
+		println("$name | starts ") color green
+	}
+}
+
+QActor led context ctxpico {
+	State s0 initial {
+		println("$name | starts ") color yellow
+	}
+}
+</pre>
 		</p>
 		</div>
 
@@ -299,7 +225,7 @@ QActor marker context ctxcargoservice{
 System cargoservice
 
 /*
- * MODELLO DELL'ANALISTA
+ * MODELLO DELL'ANALISTA DEI REQUISITI
  */
  
 // -----definizione dei messaggi-----
@@ -313,6 +239,9 @@ Context ctxcargoservice ip [host="localhost" port=8120]
 
 // -----definizione degli attori-----
 QActor cargoservice context ctxcargoservice{
+	[#
+		var HOLD_FULL = false
+	#]
 	State s0 initial{
 		println("$name | starts ") color magenta
 	}
@@ -320,10 +249,88 @@ QActor cargoservice context ctxcargoservice{
 		whenRequest loadrequest -> handleLoadRequest
 
 	State handleLoadRequest{
-		// logica di gestione richieste
+		onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var IoportState = payloadArg(0).toBoolean()
+                
+                if (IoportState) {
+                	var Cause = "porta_occupata"
+                    #] 
+                    replyTo loadrequest with retrylater : retrylater($Cause, $HOLD_FULL)
+                    println("$name | retrylater($Cause, $HOLD_FULL)") color magenta 
+                    [#
+                } else if (HOLD_FULL) {
+                    #] 
+                    replyTo loadrequest with reject : reject($HOLD_FULL) 
+                    println("$name | reject($HOLD_FULL)") color magenta
+                    [#
+                } else {
+                    HOLD_FULL = true
+                    var Slot = "slot1"
+                    #] 
+                    replyTo loadrequest with engaged : engaged($Slot, $HOLD_FULL)
+                    println("$name | engaged($Slot, $HOLD_FULL)") color magenta
+                    [#
+                }
+            #]
+        }
 	}
 	Transition t0 
 		whenRequest loadrequest -> handleLoadRequest
+}
+
+QActor ioport context ctxcargoservice{
+	[#
+		var IoportState = false
+	#]
+	State s0 initial{
+		println("$name | starts ") color blue
+	}
+	Transition t0
+		whenTime 3000 -> pushButtonLibera
+		
+	State pushButtonLibera{
+		[#
+			IoportState =  false
+		#]
+		println("$name | invio loadrequest a cargoservice, ioport libera") color blue
+		request cargoservice -m loadrequest : loadrequest($IoportState)
+	}
+	Transition t1 
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
+        
+    State pushButtonOccupata{
+		[#
+			IoportState = true
+		#]
+		println("$name | invio loadrequest a cargoservice, ioport occupata") color blue
+		request cargoservice -m loadrequest : loadrequest($IoportState)
+	}
+	Transition t2 
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
+    
+    State handleEngaged{
+    	printCurrentMessage color blue
+    }
+    Transition t3
+    	whenTime 3000 -> pushButtonOccupata
+    
+    State handleReject{
+    	printCurrentMessage color blue
+    }
+    Transition t4
+    	whenTime 3000 -> pushButtonOccupata
+    
+    State handleRetryLater{
+    	printCurrentMessage color blue
+    }
+    Transition t5
+    	whenTime 3000 -> pushButtonLibera
+    
 }
 </pre>
 		</p>
@@ -375,19 +382,20 @@ QActor cargoservice context ctxcargoservice{
         <h3 id="struttura_sistema">Struttura del sistema</h3>
 		Il sistema cargoservice si presenta come un'architettura eterogenea e distribuita. Ciascun nodo logico identificato dai requisiti opera infatti in un contesto differente: il servizio centrale, il firmware a basso livello per la gestione dei sensori hardware e il simulatore del robot.<br>
 		In uno scenario caratterizzato da questa forte eterogeneità, basare l'intera infrastruttura di comunicazione esclusivamente su uno scambio di oggetti nativi Java rappresenterebbe un errore di progettazione. Tale approccio introdurrebbe un accoppiamento tecnologico stringente, obbligando ogni singolo nodo a condividere e compilare le stesse classi Java. Questo vincolo ridurrebbe l'estensibilità del sistema e la possibilità di aggiornare i singoli componenti in modo indipendente.<br>
-		Per superare questo abstraction gap comunicativo, si adotta il metamodello <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.17" target="_blank">qak</a> (Quantitative Actor Language). Qak permette di definire le interazioni tra entità a un alto livello di astrazione, formalizzando i canali di comunicazione attraverso costrutti semantici precisi e disaccoppiati dal linguaggio di programmazione finale:
+		Per superare questo abstraction gap comunicativo, si adotta il metamodello <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.17" target="_blank">qak</a> (Quantitative Actor Language).
+		Qak è un Domain-Specific Language (DSL) focalizzato sulla progettazione di sistemi distibuiti ed eterogenei basato sul modello computazionale ad attori. Se si dovessi modellare un sistema ad attori direttamente in Java lo sviluppatore dovrebbe scrivere molto codice infrastrutturale. 
+		Con il DSL qak i concetti del dominio vengono espressi come costrutti sintattici di primo livello.
+		qak permette di definire le interazioni tra entità a un alto livello di astrazione, formalizzando i canali di comunicazione attraverso costrutti semantici precisi e disaccoppiati dal linguaggio di programmazione finale:
 		<ul>
 			<li><b>Request/Reply</b>: per interazioni sincrone o transazionali (es. la richiesta di carico del container).</li>
 			<li><b>Dispatch</b>: per l'invio asincrono di comandi diretti (es. i controlli inviati ai dispositivi periferici).</li>
 			<li><b>Event</b>: per la propagazione di informazioni generate da sorgenti isolate verso chiunque sia in ascolto (es. i dati telemetrici del sonar).</li>
 		</ul>
 
-	L'architettura iniziale prevede la scomposizione in quattro macro-nodi computazionali che, in questa prima fase di Sprint 0, verranno mappati all'interno di un unico contesto locale per motivi di semplicità e testabilità:
+	L'architettura logica che emerge dai requisiti prevede la scomposizione in due macro-nodi computazionali:
 	<ol>
-		<li>Nodo Orchestratore (cargoservice): il fulcro della logica di business.</li>
-		<li>Nodo Driver Robot (cargorobot): l'interfaccia verso le primitive di navigazione fornite dal servizio esterno RobotSmart26.</li>
-		<li>Nodo Sensore (sonar): l'unità per l'elaborazione dei flussi informativi provenienti dal modulo hardware (Raspberry Pi).</li>
-		<li>Nodo Gateway (ioport): il sottosistema che espone la Web GUI per consentire l'interazione con l'utente finale.</li>
+		<li>Nodo Applicativo (cargoservice e cargorobot): il fulcro della logica di business.</li>
+		<li>Nodo Pico (sonar e led): l'unità per l'elaborazione dei flussi informativi provenienti dal modulo hardware (Pico W).</li>
 	</ol>
 	</div>
 
@@ -408,27 +416,33 @@ QActor cargoservice context ctxcargoservice{
     <tbody>
         <tr style="background-color: #ffffff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">cargoservice</td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore qak</td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">Rappresenta la macchina a stati centrale dell'applicazione. Deve reagire in modo asincrono agli eventi dei sensori e coordinare le risposte per l'interfaccia utente.</td>
         </tr>
         <tr style="background-color: #f7f9ff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">cargorobot</td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore qak</td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">Entità dotata di ciclo di vita autonomo. Riceve le destinazioni di alto livello, monitora lo stato dello spostamento e notifica il completamento dell'azione.</td>
         </tr>
         <tr style="background-color: #ffffff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">sonar</td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore qak</td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">Agisce come un convertitore di protocollo (Adapter). Riceve le stringhe grezze dal microcontrollore del sonar e le traduce in eventi strutturati per il sistema.</td>
+        </tr>
+		</tr>
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">led</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">Entità passiva di output situata sul nodo Pico: necessita quindi dell'accesso alla rete per poter comunicare con il resto del sistema, motivo per cui viene modellato come attore. </td>
         </tr>
         <tr style="background-color: #f7f9ff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">ioport</td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore qak</td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">Disaccoppia la Web GUI dal resto dell'architettura. Smista i comandi del pulsante fisico verso il core e riceve le notifiche per l'aggiornamento del display.</td>
         </tr>
 		<tr style="background-color: #f7f9ff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">marker</td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore Qak</td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; text-align: center;">Attore qak</td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">Dispositivo attivo con ciclo di vita autonomo. Reagisce all'arrivo del carico nello slot 5, gestisce la durata della marcatura e notifica in modo asincrono il completamento al cargorobot (markingDone), evitando di bloccare l'orchestrazione principale</td>
         </tr>
         <tr style="background-color: #ffffff;">

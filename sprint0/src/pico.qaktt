@@ -1,0 +1,23 @@
+System pico
+
+/*
+ * MODELLO DELL'ANALISTA DEI REQUISITI
+ */
+ 
+// -----definizione dei messaggi-----
+
+// -----definizione del contesto-----
+Context ctxpico ip [host="localhost" port=8170]
+
+// -----definizione degli attori-----
+QActor sonar context ctxpico {
+	State s0 initial {
+		println("$name | starts ") color green
+	}
+}
+
+QActor led context ctxpico {
+	State s0 initial {
+		println("$name | starts ") color yellow
+	}
+}

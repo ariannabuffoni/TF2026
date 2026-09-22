@@ -110,6 +110,9 @@ msg(containerSensed, dispatch, webgui, ioport, STATE, N)
 msg(outOfService, dispatch, webgui, ioport, CAUSE, N)
 msg(led, dispatch, ioport, webgui, STATE, N)
         </pre>
+        <p>
+            In conformità con il principio della Clean Architecture, si è preferito il formato String piuttosto che quello JSON, in quanto in questo modo è la pagina Web ad adattarsi alla applicazione e non viceversa.
+        </p>
         <p>L'adapter si occupa della serializzazione e deserializzazione, mantenendo il frontend completamente agnostico rispetto alla sintassi IApplMessage di QAk.</p>
     </div>
 

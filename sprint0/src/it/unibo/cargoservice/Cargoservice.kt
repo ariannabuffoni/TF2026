@@ -29,6 +29,8 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 	override fun getBody() : (ActorBasicFsm.() -> Unit){
 		//val interruptedStateTransitions = mutableListOf<Transition>()
 		//IF actor.withobj !== null val actor.withobj.name� = actor.withobj.method�ENDIF
+		
+				var HOLD_FULL = false
 		return { //this:ActionBasciFsm
 				state("s0") { //this:State
 					action { //it:State
@@ -38,16 +40,38 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t03",targetState="handleLoadRequest",cond=whenRequest("loadrequest"))
+					 transition(edgeName="t00",targetState="handleLoadRequest",cond=whenRequest("loadrequest"))
 				}	 
 				state("handleLoadRequest") { //this:State
 					action { //it:State
+						if( checkMsgContent( Term.createTerm("loadrequest(IOPORT_STATE)"), Term.createTerm("loadrequest(IOPORT_STATE)"), 
+						                        currentMsg.msgContent()) ) { //set msgArgList
+								 
+								                var IoportState = payloadArg(0).toBoolean()
+								                
+								                if (IoportState) {
+								                	var Cause = "porta_occupata"
+								answer("loadrequest", "retrylater", "retrylater($Cause,$HOLD_FULL)"   )  
+								CommUtils.outmagenta("$name | retrylater($Cause, $HOLD_FULL)")
+								
+								                } else if (HOLD_FULL) {
+								answer("loadrequest", "reject", "reject($HOLD_FULL)"   )  
+								CommUtils.outmagenta("$name | reject($HOLD_FULL)")
+								
+								                } else {
+								                    HOLD_FULL = true
+								                    var Slot = "slot1"
+								answer("loadrequest", "engaged", "engaged($Slot,$HOLD_FULL)"   )  
+								CommUtils.outmagenta("$name | engaged($Slot, $HOLD_FULL)")
+								
+								                }
+						}
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t04",targetState="handleLoadRequest",cond=whenRequest("loadrequest"))
+					 transition(edgeName="t01",targetState="handleLoadRequest",cond=whenRequest("loadrequest"))
 				}	 
 			}
 		}
