@@ -1,0 +1,159 @@
+System cargoservice
+
+/*
+ * MODELLO DELL'ANALISTA DEL PROBLEMA
+ */
+ 
+// -----definizione dei messaggi-----
+
+// tra l'attore ioport e il cargoservice
+Request loadrequest     : loadrequest(IOPORT_STATE)
+Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject            : reject(HOLD_STATE) for loadrequest
+Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+Dispatch updateHoldDisplay : updateHoldDisplay(STATE, HOLD_STATE, MSG)
+Dispatch updateWorkingState : updateWorkingState(STATE) 
+
+// tra Web GUI e l'attore ioport
+Dispatch button_pushed : button_pushed(X)
+Dispatch hold_status : hold_status(SLOT_STATES)
+Dispatch working_state : working_state(STATE)
+
+// -----definizione del contesto-----
+Context ctxcargoservice ip [host="localhost" port=8120]
+
+// -----definizione degli attori-----
+QActor cargoservice context ctxcargoservice{
+	[#
+		var HOLD_FULL = false
+		var ENGAGED = false
+		var WORKING = true
+	#]
+	State s0 initial{
+		println("$name | starts ") color magenta
+	}
+	Goto idle
+	
+	State idle{
+		[# var Msg = "cargoservice partito"#]
+		println("$name | Sistema in stato IDLE") color magenta
+		forward ioport -m updateHoldDisplay : updateHoldDisplay($ENGAGED, $HOLD_FULL, $Msg)
+		forward ioport -m updateWorkingState : updateWorkingState($WORKING)
+	}
+	Transition t0 
+		whenRequest loadrequest -> handleLoadRequest
+
+	State handleLoadRequest{
+		onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var IoportState = payloadArg(0).toBoolean()
+                
+                if (IoportState) {
+                	var Cause = "porta_occupata"
+                    #] 
+                    replyTo loadrequest with retrylater : retrylater($Cause, $HOLD_FULL)
+                    println("$name | retrylater($Cause, $HOLD_FULL)") color magenta 
+                    [#
+                } else if (HOLD_FULL) {
+                    #] 
+                    replyTo loadrequest with reject : reject($HOLD_FULL) 
+                    println("$name | reject($HOLD_FULL)") color magenta
+                    [#
+                } else {
+                    HOLD_FULL = true
+                    var Slot = "slot1"
+                    ENGAGED = true
+                    #] 
+                    replyTo loadrequest with engaged : engaged($Slot, $HOLD_FULL)
+                    println("$name | engaged($Slot, $HOLD_FULL)") color magenta
+                    [#
+                }
+            #]
+        }
+	}
+	Goto engagedState if [# ENGAGED #] else idle
+	
+	State engagedState{
+		println("$name | Sistema in stato IDLE") color magenta
+	}
+	Transition t0
+		whenTime 30000 -> disengagedState
+		whenRequest loadrequest -> handleBusyRequest
+		// whenMsg occupazione del sensore -> gestione del carico
+		
+	State handleBusyRequest {
+		[#
+			var Cause = "sistema_engaged"
+        #] 
+        replyTo loadrequest with retrylater : retrylater($Cause, $HOLD_FULL)
+        println("$name | retrylater($Cause, $HOLD_FULL)") color magenta 
+    }
+    Goto engagedState
+	
+	State disengagedState{
+		println("$name | Sistema in stato DISENGAGED") color magenta
+		[# 
+			ENGAGED = false 
+			var Msg = "sistema_disengaged"
+		#]
+		forward ioport -m updateHoldDisplay : updateHoldDisplay($ENGAGED, $HOLD_FULL, $Msg)
+	}
+	Goto idle
+}
+
+QActor ioport context ctxcargoservice{
+	[#
+		var IoportState = false
+	#]
+	State s0 initial{
+		println("$name | starts ") color blue
+	}
+	Goto acceptEvents
+	
+	State acceptEvents{
+		println("$name | in attesa di eventi...") color blue
+	}
+	Transition t0 
+        whenMsg button_pushed       -> handleButton
+        whenMsg updateHoldDisplay   -> handleCoreHoldUpdate
+        whenMsg updateWorkingState  -> handleCoreWorkingState
+		
+	State handleButton{
+		println("$name | invio loadrequest a cargoservice, ioport libera") color blue
+		request cargoservice -m loadrequest : loadrequest($IoportState)
+	}
+	Transition t1 
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
+    
+    State handleEngaged{
+    	printCurrentMessage color blue
+    	// comunicazione di Hold Status tramite Adapter
+    }
+    Goto acceptEvents
+    
+    State handleReject{
+    	printCurrentMessage color blue
+    	// comunicazione di Hold Status tramite Adapter
+    }
+    Goto acceptEvents
+    
+    State handleRetryLater{
+    	printCurrentMessage color blue
+    	// comunicazione di Hold Status tramite Adapter
+    }
+    Goto acceptEvents
+    
+    State handleCoreHoldUpdate{
+    	printCurrentMessage color blue
+    	// comunicazione di Hold Status tramite Adapter
+    }
+    Goto acceptEvents
+    
+    State handleCoreWorkingState{
+    	printCurrentMessage color blue
+    	// comunicazione di Working State tramite Adapter
+    }
+    Goto acceptEvents
+}
