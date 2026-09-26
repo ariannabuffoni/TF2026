@@ -132,7 +132,7 @@ containers and a slot named <b>slot5</b>.
                 <b>ioport</b>: è l'entità di frontiera che interfaccia il mondo esterno (utente/browser) con il core applicativo. Gestisce stimoli concorrenti bidirezionali: cattura l'azione dell'utente (click sul pulsante) per inoltrare la richiesta a cargoservice, e riceve gli aggiornamenti di stato per notificarli all'interfaccia. Anch'esso deve essere modellato come QActor.
             </li>
             <li>
-                <b>Hold</b>: rappresenta lo stato degli alloggiamenti della stiva. Dato che non possiede un thread di controllo autonomo né reagisce spontaneamente a stimoli esterni, ma viene interrogata e manipolata in modo sequenziale unicamente dall'attore cargoservice, è opportunamente modellata come un POJO Java puro.
+                <b>hold</b>: rappresenta lo stato degli alloggiamenti della stiva. Dato che non possiede un thread di controllo autonomo né reagisce spontaneamente a stimoli esterni, ma viene interrogata e manipolata in modo sequenziale unicamente dall'attore cargoservice, è opportunamente modellata come un POJO Java puro.
             </li>
         </ul>
     </div>
@@ -192,7 +192,7 @@ containers and a slot named <b>slot5</b>.
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Il sistema distribuito e le problematiche di comunicazione</h3>
         <p>
-            Con l'introduzione di entità web e di nodi separati, il sistema evolve in un'architettura distribuita: è quindi necessaria la rete per permettere la comunicazione tra le varie parti. Questo comporta un cambio di paradigma rispetto ai sistemi monolitici basati su chiamate procedurali all'interno di una singola JVM:
+            Con l'introduzione di entità web e di nodi separati, il sistema evolve in un'architettura distribuita: è quindi necessaria la rete per permettere la comunicazione tra le varie parti. Questo comporta un cambio di paradigma rispetto ai sistemi monolitici basati su chiamate procedurali all'interno di una singola JVM.
         </p>
     </div>
 
@@ -238,7 +238,7 @@ msg(button_pushed, dispatch, webgui, ioport, X, N)
 msg(hold_status, dispatch, ioport, webgui, SLOT_STATES, N)
 msg(working_state, dispatch, ioport, webgui, STATE, N)
 </pre>
-                    In conformità con il principio della Clean Architecture, si è preferito il formato String piuttosto che quello JSON, in quanto in questo modo è la pagina Web ad adattarsi alla applicazione e non viceversa.<br/>
+                    In conformità con il principio della Clean Architecture, si è preferito il formato String piuttosto che quello JSON, in quanto in questo modo è la pagina Web ad adattarsi all'applicazione e non viceversa.<br/>
                     L'adapter si occupa della serializzazione e deserializzazione, mantenendo il frontend completamente agnostico rispetto alla sintassi IApplMessage di QAk.<br/>
                     La Web GUI non invia comandi diretti al servizio centrale, ma genera eventi asincroni di frontiera:
                     <ul>
@@ -488,10 +488,10 @@ QActor ioport context ctxcargoservice{
             Per consentire lo sviluppo e il test rigoroso del cargoservice e della Web GUI in questo Sprint 1 — in attesa di integrare i dispositivi hardware reali (sonar, LED e robot fisico) previsti nei successivi sprint — sono stati introdotti specifici messaggi e meccanismi di Mock:
             <ul>
                 <li>
-                    Simulazione del Sensore (<code>containerSensed</code>): Attraverso un apposito comando o interruttore di controllo presente sulla Web GUI, è possibile simulare la variazione di distanza rilevata dal sonar (DFREE), iniettando l'evento di presenza container che attiva la presa in carico del sistema.
+                    Simulazione del sensore (<code>containerSensed</code>): Attraverso un apposito comando o interruttore di controllo presente sulla Web GUI, è possibile simulare la variazione di distanza rilevata dal sonar (DFREE), iniettando l'evento di presenza container che attiva la presa in carico del sistema.
                 </li>
                 <li>
-                    Simulazione di Guasto (<code>outOfService</code>): Permette di testare la reattività del core di fronte a condizioni anomale o malfunzionamenti del sensore, forzando la transizione allo stato protetto di blocco.
+                    Simulazione di guasto (<code>outOfService</code>): Permette di testare la reattività del core di fronte a condizioni anomale o malfunzionamenti del sensore, forzando la transizione allo stato protetto di blocco.
                 </li>
                 <li>
                     Gestione dello stato visivo (<code>led</code>): Sincronizza lo stato dell'indicatore luminoso (spento, lampeggiante, rosso di errore) tra il core, l'attore di frontiera e la rappresentazione grafica sul browser.

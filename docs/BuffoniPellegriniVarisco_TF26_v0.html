@@ -125,15 +125,15 @@ containers and a slot named <b>slot5</b>.
 		<p>Rappresenta il punto di interazione fisico/logico posizionato all'ingresso della stiva, strutturato come un nodo indipendente che espone una Web GUI (come indicato dal committente). Gestisce i flussi di input e output dell'utente disaccoppiandoli dalla logica aziendale core ed è modellato come un <a href="#actor_vs_pojo">attore</a>.  
 			<ul>
 				<li>Il suo componente di input (pushbotton) è un elemento reattivo che cattura l'interazione del cliente (pressione del pulsante) e la traduce in una richiesta formale di carico (button_pushed) indirizzata verso il sistema</li>
-				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e lo stato del sistema:"Service working" o "Out of service".</li>
+				<li>Il suo componente di output (display) si comporta come un terminale passivo incaricato di mostrare visivamente le informazioni trasmesse dal servizio. Mostra in tempo reale lo stato di occupazione dei quattro slot e lo stato del sistema: "Service working" o "Out of service".</li>
 			</ul> 
 			Vengono formalizzati quindi i 
 			<a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#section.17.6" target="_blank">messaggi</a>:
 			<pre>
 Request loadrequest     : loadrequest(IOPORT_STATE)
-Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
-Reply reject            : reject(HOLD_STATE) for loadrequest
-Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+Reply retrylater              : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject                   : reject(HOLD_STATE) for loadrequest
+Reply engaged              : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
 </pre>
 		</p>
 		</div>
@@ -383,7 +383,7 @@ QActor ioport context ctxcargoservice{
 		Il sistema cargoservice si presenta come un'architettura eterogenea e distribuita. Ciascun nodo logico identificato dai requisiti opera infatti in un contesto differente: il servizio centrale, il firmware a basso livello per la gestione dei sensori hardware e il simulatore del robot.<br>
 		In uno scenario caratterizzato da questa forte eterogeneità, basare l'intera infrastruttura di comunicazione esclusivamente su uno scambio di oggetti nativi Java rappresenterebbe un errore di progettazione. Tale approccio introdurrebbe un accoppiamento tecnologico stringente, obbligando ogni singolo nodo a condividere e compilare le stesse classi Java. Questo vincolo ridurrebbe l'estensibilità del sistema e la possibilità di aggiornare i singoli componenti in modo indipendente.<br>
 		Per superare questo abstraction gap comunicativo, si adotta il metamodello <a href="https://anatali.github.io/issLab2026/_static/docs/Protobook.pdf#chapter.17" target="_blank">qak</a> (Quantitative Actor Language).
-		Qak è un Domain-Specific Language (DSL) focalizzato sulla progettazione di sistemi distibuiti ed eterogenei basato sul modello computazionale ad attori. Se si dovessi modellare un sistema ad attori direttamente in Java lo sviluppatore dovrebbe scrivere molto codice infrastrutturale. 
+		Qak è un Domain-Specific Language (DSL) focalizzato sulla progettazione di sistemi distibuiti ed eterogenei basato sul modello computazionale ad attori. Se si dovesse modellare un sistema ad attori direttamente in Java lo sviluppatore dovrebbe scrivere molto codice infrastrutturale. 
 		Con il DSL qak i concetti del dominio vengono espressi come costrutti sintattici di primo livello.
 		qak permette di definire le interazioni tra entità a un alto livello di astrazione, formalizzando i canali di comunicazione attraverso costrutti semantici precisi e disaccoppiati dal linguaggio di programmazione finale:
 		<ul>
