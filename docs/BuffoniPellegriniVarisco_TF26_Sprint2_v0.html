@@ -1,0 +1,636 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+
+<link rel="stylesheet" type="text/css" href="css/mystyle.css">
+<!--
+    <script type="text/javascript" src="../css/issStyle.js"></script>
+-->
+    
+</head>
+   
+<title>TF26_Sprint2_v0</title></head>
+    
+
+<body>
+<div id="top">
+<h1>TF26 - Sprint2</h1>
+</div>  
+
+<div class="body">
+<p><b>Goal Sprint2: </b> 
+Progettare e realizzare l'attore <code>cargorobot</code> e integrarlo con l'ambiente virtuale <code>RobotSmart26</code> per eseguire la missione autonoma di trasferimento container (IOPort -&gt; slot 5 -&gt; slot assegnato -&gt; HOME). Modellare il componente <code>marker</code> per la sincronizzazione del processo di marcatura nello slot 5.
+</p>
+
+<h2>Introduction</h2>
+<p>
+A <i>Maritime Cargo shipping company</i> (from now on, simply <b>company</b>) intends to automate the operations of load of
+<b>containers</b> in the ship’s cargo hold (or simply <b>hold</b>). To this end, the company plans to employ a <i>Differential Drive
+Robot</i> (from now, called <b>cargorobot</b>).
+</p>
+
+<p>
+The <i>hold</i> is a rectangular, flat area with an Input/Output port (<b>IOPort</b>). The area provides <code>4 slots</code> to store the
+containers and a slot named <b>slot5</b>.
+</p>
+
+<div style="text-align: center;">
+	<img src="./img/TF26_immagine_consegna.png" alt="immagine consegna" width="50%" height="50%">
+</div>
+
+<p>
+	In the picture above:
+	<ul>
+		<li>
+			The <b>slots1-4</b> depict the hold areas reserved to store one <i>container</i> each,
+		</li>
+		<li>
+			The <b>slot5</b> depicts an area, where the <i>cargorobot</i> must temporarily store a container, before to place it in one of the <i>slots1-4</i>. During temporary storage, a ‘marker’ device labels the container with an identification barcode and signals when this marking activity is completed.
+		</li>
+		<li>
+			The <b>IOPort</b> is a device with a <b>pushbutton</b> and <b>a display</b>. The <i>pushbutton</i> is pressed by the customer in order to to send a request to load a container on the cargo. The <i>display</i> is used to show the answer to the request and to show the current state of the <i>hold</i>.
+		</li>
+		<li>
+			The <b>sensor</b> associated to the <i>IOPort</i> is a device (a <i>sonar</i>) used to detect the presence of a container, when it measures a distance D, such that <code>D &lt; DFREE/2</code>, during a reasonable time (e.g. 3 secs).
+		</li>
+	</ul>
+</p>
+
+
+
+<h2>Requirements</h2>
+<div class="remark">
+<p>
+	The company asks us to build service named <b>cargoservice</b> that should work as follows.
+</p>
+
+<p>
+	The <i>cargoservice</i> is able to receive a <b>request to load</b> a container sent by some customer by using the <i>pushbutton</i> of the <i>IOPort</i>.
+	<ul>
+		<li>
+			It sends the answer <code>retrylater</code>, if the <b>IOPort</b> is currently occupied by a container or if the system is <i>Out of service</i>
+		</li>
+		<li>
+			It rejects the request when the hold is already full, i.e. the <code>slots1-4</code> are already occupied.
+		</li>
+		<li>
+			Otherwise, it considers the system as <b>engaged</b>, detects a free slot and returns as answer the name of such a
+			reserved slot. While engaged, the system must blink a Led.
+		</li>
+	</ul>
+</p>
+
+<p>
+	When the <i>request</i> to load is accepted, the customer must move the container in the <i>sensor</i> area within prefixed amount
+	of time (e.g. 30 secs), otherwise the systems becomes <b>disengaged</b>. Then, the <i>cargoservice</i> uses the <i>cargorobot</i> to
+	move the container from the <i>IOPort</i> to the <i>slot5</i> (for marking the container) and then to the reserved slot.
+</p>
+
+<p>
+	The service must also show on the <i>display</i> on the <i>IOPort</i>:
+	<ul>
+		<li>
+			the current state of the <i>hold</i>
+		</li>
+		<li>
+			the message <b>‘Service working’</b>, when it is all is going well
+		</li>
+		<li>
+			the message <b>‘Out of service’</b> if the <i>sonar sensor</i> measures a distance <code>D &gt; DFREE</code> for at least 3 secs (perhaps a
+			failure of the <i>sonar</i>).
+		</li>
+	</ul>
+</p>
+</div>
+
+
+<h2>Requirement analysis</h2>
+<div class="remark">
+    <p>
+        L'analisi dei requisiti è stata svolta nello <a href="https://ariannabuffoni.github.io/TF2026/BuffoniPellegriniVarisco_TF26_v0.html" target="_blank">Sprint0</a>.
+    </p>
+</div>
+
+<h2>Problem analysis</h2>
+<div class="remark">
+    <h3>Il ruolo di cargorobot come componente intermedio</h3>
+    <p>
+        Come evidenziato nell'analisi dei requisiti dello Sprint 0, RobotSmart26 è il servizio esterno individuato per governare il robot a guida differenziale (DDR), 
+        in quanto riduce l'abstraction gap calcolando autonomamente il path-planning a partire da coordinate cartesiane.   
+        Tuttavia, RobotSmart26 è un componente infrastrutturale agnostico rispetto al dominio applicativo: non conosce i concetti di stiva, container, slot riservato, marcatura barcode o fasi di carico.
+        <ul>
+            <li>
+                Separazione delle responsabilità (SRP): Far interagire direttamente cargoservice con RobotSmart26 sovraccaricherebbe l'orchestratore di dettagli operativi legati alle tratte e creerebbe un accoppiamento tecnologico stringente verso il simulatore.
+            </li>
+            <li>
+                cargorobot come attore intermediario: Si introduce cargorobot come entità autonoma dotata di ciclo di vita proprio (QActor). Riceve da cargoservice l'ordine di trasporto ad alto livello (transportContainer(SLOT, X, Y)), coordina la sequenza di tappe e traduce la missione in chiamate verso il servizio robot.
+            </li>
+        </ul>
+    </p>
+
+    <h3>Canale di Comunicazione verso RobotSmart26</h3>
+    <p>
+        Analizzando le interfacce esposte da RobotSmart26:
+        <ol>
+            <li>
+                MQTT: Richiede la presenza e la manutenzione di un broker aggiuntivo (come Mosquitto), oltre a dover gestire manualmente l'impacchettamento e la correlazione asincrona dei messaggi su topic distinti (robotsmart26in e robotsmart26in_out).
+            </li>
+            <li>
+                CoAP: Orientato prevalentemente all'osservabilità delle risorse (es. stato di robotmnemo). Il suo uso per il comando richiederebbe la riscrittura a mano del layer di richiesta/risposta.
+            </li>
+            <li>
+                ExternalQActor su TCP (Scelta di Progetto): Poiché RobotSmart26 è esso stesso sviluppato mediante l'infrastruttura QAk, è possibile referenziarlo direttamente come ExternalQActor su un contesto remoto (ctxrobotsmart). L'infrastruttura QAk gestisce in modo trasparente e nativo la serializzazione dei messaggi e il socket TCP, senza intermediari o librerie esterne.
+            </li>
+        </ol>
+    </p>
+
+    <h3>Livello di astrazione dei comandi di movimento</h3>
+    <p>
+        Il componente software RobotSmart26 non espone una singola modalità di pilotaggio, bensì diversi livelli di astrazione per il controllo della navigazione del DDR. Nell'ottica di ridurre l'abstraction gap senza introdurre complessità non richieste dal committente, è necessario analizzare comparativamente ciascuna alternativa:
+        <ol>
+            <li>
+                Comandi elementari di navigazione: step e move
+                <ul>
+                    <li>
+                        <b>Definizione e Semantica</b>: Costituiscono il livello di interazione a più basso livello esposto dal servizio. Comprendono primitive atomiche come il singolo passo in avanti calibrato su un tempo prestabilito (step(TIME)) con relativa risposta di esito (stepdone(V) / stepfailed(DURATION, CAUSE)), e comandi asincroni di rotazione o arresto inviati via dispatch (move(M) con M in {l, r, a, d, h}).
+                    </li>
+                    <li>
+                        <b>Contesto d'uso ideale</b>: Questa modalità è concepita per problemi di esplorazione euristica o mappatura dinamica, ovvero per scenari in cui lo spazio di manovra non è noto a priori e il robot deve procedere per tentativi analizzando l'ambiente passo dopo passo (ad esempio costeggiando un perimetro ignoto).
+                    </li>
+                    <li>
+                        <b>Valutazione critica per il progetto</b>: Nel nostro scenario, l'ambiente della stiva è rettangolare, statico e con coordinate ben definite note a priori fin dalla fase di analisi (HOME, IOPort, slot5, slot1..4). Optare per questo approccio costringerebbe l'attore cargorobot a farsi carico della gestione della bussola interna, della verifica dell'orientamento, del conteggio dei singoli passi e della ri-pianificazione manuale in caso di scostamento. Ciò reintrodurrebbe all'interno dell'applicazione una complessità algoritmica di basso livello che è già stata risolta a monte dal componente RobotSmart26, annullando di fatto il beneficio della sua adozione.
+                    </li>
+                </ul>
+            </li> 
+            <li>
+                Pianificazione ed esecuzione disaccoppiate: buildPlan seguito da doplan
+                <ul>
+                    <li>
+                        <b>Definizione e Semantica</b>: Questo livello separa nettamente la fase di calcolo del tragitto da quella di attuazione dei movimenti. L'invio della richiesta buildPlan(PX, PY, TX, TY) istruisce il servizio a elaborare una sequenza formale di passi e rotazioni ottimali per passare dalle coordinate di partenza (PX, PY) a quelle di destinazione (TX, TY), restituendo il piano nella reply buildPlanDone(PLAN). Successivamente, il chiamante inoltra tale piano tramite doplan(PLAN, STEPTIME) e attende l'esito finale (doplandone(ARG) oppure doplanfailed(PLANTODO)).
+                    </li>
+                    <li>
+                        <b>Contesto d'uso ideale</b>: È la soluzione ottimale in contesti dinamici o critici, in cui il software di alto livello deve ispezionare, validare o alterare il percorso prima che i motori vengano azionati (ad esempio per verificare che la traiettoria pianificata non attraversi aree temporaneamente interdette, per stimare costi energetici o per iniettare checkpoint intermedi).
+                    </li>
+                    <li>
+                        <b>Valutazione critica per il progetto</b>: Nessun requisito del committente richiede la modifica o l'ispezione runtime del tragitto. Le tratte tra le postazioni della stiva sono predeterminate e non presentano ostacoli dinamici non cooperativi. L'introduzione di questa coppia di chiamate aggiungerebbe una transizione di stato intermedia e una responsabilità di gestione del payload del piano all'interno di cargorobot, senza portare alcun valore aggiunto tangibile al controllo della missione.
+                    </li>
+                </ul>
+            </li>
+            <li>
+                Navigazione a coordinate assolute: moverobot
+                <ul>
+                    <li>
+                        <b>Definizione e Semantica</b>: Rappresenta il livello di astrazione più elevato fornito da RobotSmart26. Con una singola richiesta moverobot(TARGETX, TARGETY, STEPTIME), il chiamante specifica esclusivamente la cella cartesiana di arrivo sulla griglia della stiva e il tempo di calibrazione del passo. Il servizio calcola internamente l'orientamento iniziale, pianifica il percorso ed esegue i passi necessari, restituendo un'unica risposta conclusiva: moverobotdone (o moverobotok(ARG)) in caso di arrivo a destinazione, oppure moverobotfailed(PLANDONE, PLANTODO) in caso di ostacolo imprevisto lungo la rotta.
+                    </li>
+                    <li>
+                        <b>Contesto d'uso ideale</b>: È indicato per scenari di navigazione deterministica all'interno di ambienti a griglia completamente noti in cui il chiamante necessita di delegare per intero la cinematica e il calcolo del percorso al controller del robot.
+                    </li>
+                    <li>
+                        <b>Valutazione critica per il progetto</b>: È l'approccio che minimizza l'abstraction gap. Permette a cargorobot di esprimere la missione ad alto livello secondo la semantica del dominio applicativo ("raggiungi l'IOPort", "raggiungi lo slot 5", "raggiungi lo slot riservato", "torna in HOME") senza dover gestire strutture dati relative al cammino. Inoltre, preserva la manutenibilità del codice applicativo confinando la logica di movimento all'interno del servizio preposto.
+                    </li>
+                </ul>
+            </li>
+        </ol>
+        <b>***TABELLA***</b>
+    </p>
+
+    <h3>Modellazione del Marker (Slot 5)</h3>
+    <p>
+        Il testo del problema descrive il marker come un dispositivo situato nello slot 5 per l'etichettatura barcode temporanea.
+        Nell'analisi del problema emergono due opzioni:
+        <ol>
+            <li>
+                Attore QActor separato (marker): Riceve la notifica di container depositato, calcola il tempo di etichettatura ed emette un dispatch di avvenuta marcatura.
+            </li>
+            <li>
+                Attesa gestita all'interno della sequenza di cargorobot: La marcatura è un'operazione atomica che blocca il robot in slot5 per un tempo prefissato prima che possa prelevare nuovamente il container verso lo slot di destinazione.
+            </li>
+        </ol>
+        Per evitare la proliferazione di attori passivi, si valuta di modellare la permanenza in slot5 nello stato atSlot5 tramite una transizione temporizzata esplicita (whenTime 3000), che simula il completamento dell'attività di marcatura prima della ripartenza verso lo slot finale.
+    </p>
+
+    <h3>Reazione ai Fallimenti di Movimento</h3>
+    <p>
+        Se RobotSmart26 risponde con moverobotfailed(PLANDONE, PLANTODO) (es. percorso ostruito o guasto simulato), cargorobot interrompe la missione, entra in uno stato di sicurezza (halted) e notifica cargoservice tramite il dispatch transportFailed. La decisione su come gestire il sistema (annullamento della prenotazione o stato di allarme) rimane in capo all'orchestratore.
+    </p>
+
+    <h3>Architettura dei Contesti per lo Sprint 2</h3>
+    <p>
+        Nel nostro Sprint 1 gli attori cargoservice e ioport condividevano lo stesso contesto ctxcargoservice su porta 8120.
+        Nello Sprint 2:
+        <ul>
+            <li>
+                ctxcargoservice (porta 8120): Ospita il core applicativo cargoservice, l'attore cargorobot e il gateway ioport (connesso alla WebGUI via WebSocket su porta 7070).
+            </li>
+            <li>
+                ctxrobotsmart (porta 8020 / host 127.0.0.1): Processo autonomo fornito dal committente che esegue RobotSmart26.
+            </li>
+        </ul>
+    </p>
+
+    <h3>Il modello prodotto</h3>
+    <p>
+        Dall'analisi precedente segue il protocollo dei messaggi del modello qak (sprint2.qak ).
+        <pre>
+System sprint2
+
+// --- Comunicazione IOPort <-> CargoService (dallo Sprint 1) ---
+Request loadrequest        : loadrequest(IOPORT_STATE)
+Reply   retrylater         : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply   reject             : reject(HOLD_STATE) for loadrequest
+Reply   engaged            : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+
+Dispatch updateHoldDisplay  : updateHoldDisplay(STATE, HOLD_STATE, MSG)
+Dispatch updateWorkingState: updateWorkingState(STATE)
+Dispatch button_pushed     : button_pushed(X)
+Dispatch containerSensed   : containerSensed(X)
+
+// --- Comunicazione CargoService <-> CargoRobot ---
+Request  transportContainer : transportContainer(SLOT, TARGETX, TARGETY)
+Reply    transportDone      : transportDone(SLOT) for transportContainer
+Reply    transportFailed    : transportFailed(CAUSE) for transportContainer
+
+// --- Interfaccia nativa verso RobotSmart26 ---
+Request  moverobot          : moverobot(TARGETX, TARGETY, STEPTIME)
+Reply    moverobotdone      : moverobotok(ARG) for moverobot
+Reply    moverobotfailed    : moverobotfailed(PLANDONE, PLANTODO) for moverobot
+
+// --- Contesti di Esecuzione ---
+Context ctxcargoservice ip [host="localhost" port=8120]
+Context ctxrobotsmart   ip [host="127.0.0.1" port=8020]
+
+ExternalQActor robotsmart context ctxrobotsmart
+        </pre>
+    </p>
+</div>
+
+
+<h2>Test plans</h2>
+<div class="remark">
+    <p>
+        I casi di test mirano a validare l'orchestrazione della missione di trasporto e l'integrazione con il servizio esterno:
+        <b>***TABELLA***</b>
+    </p>
+</div>
+
+<h2>Project</h2>
+<div class="remark">
+    <h3>L'attore cargorobot</h3>
+    <p>
+        L'attore implementa la seguente sequenza:
+        <ol>
+            <li>
+                Movimento da HOME a IOPort;
+            </li>
+            <li>
+                Movimento da IOPort a slot5 (con sosta di marcatura barcode);
+            </li>
+            <li>
+                Movimento da slot5 allo slot finale riservato;
+            </li>
+            <li>
+                Rientro in HOME e chiusura della missione.
+            </li>
+        </ol>
+        <pre>
+QActor cargorobot context ctxcargoservice {
+    [#
+        var TargetSlot = -1
+        var TargetX = -1
+        var TargetY = -1
+        val StepTime = 345
+    #]
+    withobj hold using "cargoservice.Hold()"
+
+    State idle initial {
+        println("$name | pronto in IDLE") color blue
+    }
+    Transition t0 whenRequest transportContainer -> moveToIOPort
+
+    State moveToIOPort {
+        onMsg(transportContainer : transportContainer(SLOT, TARGETX, TARGETY)) {
+            [#
+                TargetSlot = payloadArg(0).toInt()
+                TargetX    = payloadArg(1).toInt()
+                TargetY    = payloadArg(2).toInt()
+                val posIOPort = hold.getIOPortPosition()
+            #]
+            println("$name | Inizio trasporto per slot $TargetSlot verso IOPort") color blue
+            request robotsmart -m moverobot : moverobot($posIOPort.x, $posIOPort.y, $StepTime)
+        }
+    }
+    Transition t1 whenReply moverobotdone   -> atIOPort
+                  whenReply moverobotfailed -> handleMoveFailed
+
+    State atIOPort {
+        println("$name | Arrivato a IOPort, prelievo container") color blue
+    }
+    Transition t2 whenTime 1500 -> moveToSlot5
+
+    State moveToSlot5 {
+        [# val posS5 = hold.getSlot5Position() #]
+        println("$name | Trasferimento a Slot 5 per marcatura barcode") color blue
+        request robotsmart -m moverobot : moverobot($posS5.x, $posS5.y, $StepTime)
+    }
+    Transition t3 whenReply moverobotdone   -> atSlot5
+                  whenReply moverobotfailed -> handleMoveFailed
+
+    State atSlot5 {
+        println("$name | Arrivato a Slot 5: marcatura in corso...") color blue
+    }
+    Transition t4 whenTime 3000 -> moveToTargetSlot
+
+    State moveToTargetSlot {
+        println("$name | Marcatura ultimata. Verso lo slot riservato ($TargetX, $TargetY)") color blue
+        request robotsmart -m moverobot : moverobot($TargetX, $TargetY, $StepTime)
+    }
+    Transition t5 whenReply moverobotdone   -> atTargetSlot
+                  whenReply moverobotfailed -> handleMoveFailed
+
+    State atTargetSlot {
+        println("$name | Container depositato nello slot $TargetSlot") color blue
+    }
+    Transition t6 whenTime 1500 -> returnToHome
+
+    State returnToHome {
+        [# val posHome = hold.getHomePosition() #]
+        println("$name | Rientro verso HOME ($posHome.x, $posHome.y)") color blue
+        request robotsmart -m moverobot : moverobot($posHome.x, $posHome.y, $StepTime)
+    }
+    Transition t7 whenReply moverobotdone   -> transportCompleted
+                  whenReply moverobotfailed -> handleMoveFailed
+
+    State transportCompleted {
+        println("$name | Missione conclusa con successo in HOME") color blue
+        replyTo transportContainer with transportDone : transportDone($TargetSlot)
+        [# TargetSlot = -1 #]
+    }
+    Goto idle
+
+    State handleMoveFailed {
+        println("$name | ERRORE DI NAVIGAZIONE da RobotSmart26!") color red
+        replyTo transportContainer with transportFailed : transportFailed(robot_stuck)
+        [# TargetSlot = -1 #]
+    }
+    Goto idle
+}
+        </pre>
+    </p>
+    
+    <h3>cargoservice</h3>
+    <p>
+        cargoservice delega il movimento a cargorobot dopo l'accettazione e il rilevamento del container:
+        <pre>
+State handleContainer {
+    println("$name | Container rilevato nell'area sensore. Avvio carico.") color magenta
+    [#
+        val targetX = h.getSlotX(CurrentReservedSlot)
+        val targetY = h.getSlotY(CurrentReservedSlot)
+    #]
+    request cargorobot -m transportContainer : transportContainer($CurrentReservedSlot, $targetX, $targetY)
+}
+Transition tTrans whenReply transportDone   -> handleTransportSuccess
+                  whenReply transportFailed -> handleTransportFailure
+
+State handleTransportSuccess {
+    onMsg(transportDone : transportDone(SLOT)) {
+        [#
+            val finishedSlot = payloadArg(0).toInt()
+            h.setSlotOccupied(finishedSlot)
+            CurrentReservedSlot = -1
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'IDLE'"
+            var MsgStr = "'Carico completato con successo'"
+        #]
+        println("$name | Carico completato nello slot $finishedSlot") color magenta
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
+    }
+}
+Goto idle
+
+State handleTransportFailure {
+    println("$name | Allarme: fallimento durante la movimentazione!") color red
+    [#
+        if (CurrentReservedSlot != -1) {
+            h.releaseSlot(CurrentReservedSlot)
+            CurrentReservedSlot = -1
+        }
+    #]
+    Goto idle
+}
+        </pre>
+    </p>
+
+    <h3>Gestione degli Slot e Modellazione della Stiva (Hold)</h3>
+    <p>
+        Nel corso dello Sprint 1, la classe Hold si limitava a tenere traccia della disponibilità numerica e dello stato astratto degli alloggiamenti (FREE, RESERVED, OCCUPIED) per abilitare le risposte di accettazione o rifiuto delle richieste. Con l'introduzione della movimentazione autonoma del DDR nello Sprint 2, la stiva deve arricchirsi di una rappresentazione spaziale conforme al sistema di riferimento a coordinate cartesiane richiesto da RobotSmart26.<br/>
+        <b>Separazione tra Topologia Immutabile e Stato Dinamico</b><br/>
+        La gestione delle informazioni all'interno della stiva presenta due componenti con requisiti di mutabilità opposti:
+        <ol>
+            <li>
+                Layout Fisso e Topologia Immutabile: Comprende le coordinate cartesiane (X, Y) delle posizioni operative fisse della stiva, definite in base alla griglia euclidea introdotta nello Sprint 0:
+                <ul>
+                    <li>
+                        HOME (0, 0): punto di stazionamento iniziale e finale del robot;
+                    </li>
+                    <li>
+                        IOPort (X_IN, Y_IN): area di carico e accesso antistante la porta;
+                    </li>
+                    <li>
+                        slot5 (X_S5, Y_S5): area per la sosta temporanea e la marcatura barcode;
+                    </li>
+                    <li>
+                        slot1..4 (X_i, Y_i): coordinate di deposito dei quattro alloggiamenti definitivi.
+                        Questi valori sono costanti di progetto e non cambiano mai nel corso dell'esecuzione. Possono quindi essere letti in totale sicurezza e concorrenza da più attori senza incorrere in condizioni di corsa (race condition).
+                    </li>
+                </ul>
+            </li>
+            <li>
+                Stato Dinamico di Occupazione: Riguarda la mutabilità dello stato dei singoli alloggiamenti (FREE, RESERVED, OCCUPIED) e l'identificativo dell'eventuale slot riservato correntemente in attesa di deposito. Poiché questo stato è mutevole, deve risiedere esclusivamente all'interno dell'istanza Hold gestita dall'attore orchestratore cargoservice.
+            </li>
+        </ol>
+        Questa distinzione architetturale consente a cargorobot di istanziare una copia locale di sola lettura di Hold, interrogandola unicamente per ricavare le coordinate dei punti di interesse (getHomePosition(), getIOPortPosition(), getSlot5Position()), senza poter alterare indebitamente lo stato delle riserve della stiva.<br/>
+        <b>Interfaccia e Metodi di Hold</b><br/>
+        L'entità Hold incapsula la mappa della stiva esponendo metodi sincroni ad alto livello:
+        <b>***TABELLA***</b><br/>
+        <b>Implementazione della Classe POJO Hold.java</b><br/>
+        <pre>
+package utils.cargoservice;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class Hold {
+    public static final int MAX_SLOTS = 4;
+
+    // Struttura ausiliaria per coordinate cartesiane
+    public record Position(int x, int y) {}
+
+    // Stato di ciascun slot
+    public enum SlotStatus { FREE, RESERVED, OCCUPIED }
+
+    // Mappa topologica immutabile delle posizioni fisse sulla griglia
+    private final Position homePos = new Position(0, 0);
+    private final Position ioPortPos = new Position(0, 4);
+    private final Position slot5Pos = new Position(4, 2);
+
+    private final Map<Integer, Position> slotCoordinates = new HashMap<>();
+    private final Map<Integer, SlotStatus> slotStates = new HashMap<>();
+
+    public Hold() {
+        // Inizializzazione coordinate cartesiane dei 4 slot della stiva
+        slotCoordinates.put(1, new Position(1, 1));
+        slotCoordinates.put(2, new Position(3, 1));
+        slotCoordinates.put(3, new Position(1, 3));
+        slotCoordinates.put(4, new Position(3, 3));
+
+        // Inizializzazione degli stati a FREE
+        for (int i = 1; i <= MAX_SLOTS; i++) {
+            slotStates.put(i, SlotStatus.FREE);
+        }
+    }
+
+    // --- Metodi di accesso alle posizioni fisse (Read-Only) ---
+    public Position getHomePosition() { return homePos; }
+    public Position getIOPortPosition() { return ioPortPos; }
+    public Position getSlot5Position() { return slot5Pos; }
+
+    public int getSlotX(int slotId) {
+        Position pos = slotCoordinates.get(slotId);
+        return pos != null ? pos.x() : -1;
+    }
+
+    public int getSlotY(int slotId) {
+        Position pos = slotCoordinates.get(slotId);
+        return pos != null ? pos.y() : -1;
+    }
+
+    // --- Metodi di manipolazione di stato (usati da cargoservice) ---
+    public synchronized boolean isFull() {
+        return slotStates.values().stream().noneMatch(s -> s == SlotStatus.FREE);
+    }
+
+    public synchronized int reserveFirstFree() {
+        for (int i = 1; i <= MAX_SLOTS; i++) {
+            if (slotStates.get(i) == SlotStatus.FREE) {
+                slotStates.put(i, SlotStatus.RESERVED);
+                return i;
+            }
+        }
+        return -1; // Stiva piena
+    }
+
+    public synchronized void releaseSlot(int slotId) {
+        if (slotStates.containsKey(slotId) && slotStates.get(slotId) == SlotStatus.RESERVED) {
+            slotStates.put(slotId, SlotStatus.FREE);
+        }
+    }
+
+    public synchronized void setSlotOccupied(int slotId) {
+        if (slotStates.containsKey(slotId)) {
+            slotStates.put(slotId, SlotStatus.OCCUPIED);
+        }
+    }
+
+    public synchronized String displayStatus() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 1; i <= MAX_SLOTS; i++) {
+            if (i > 1) sb.append(",");
+            sb.append(i).append(":").append(slotStates.get(i));
+        }
+        return sb.toString();
+    }
+}
+        </pre>
+    </p>
+</div>
+
+
+<h2>Testing</h2> 
+<div class="remark">
+    <p>
+        
+    </p>
+</div> 
+
+<h2>Deployment</h2>
+<div class="remark">
+    <p>
+        Il deployment dello Sprint 2 richiede l'esecuzione concorrente del simulatore del robot e dell'applicazione QAk
+        <b>***TABELLA senza ultima riga***</b>
+    </p>
+</div>
+
+<h2>Definizione dello Sprint3</h2>
+<div class="remark">
+    <p>
+        Requisiti Selezionati per lo Sprint 3:
+        <ul>
+            <li>
+                Integrazione del Sonar Fisico/Simulato: Realizzare l'attore sonar collegato a un dispositivo hardware reale (Raspberry PicoW con sensore a ultrasuoni) o a un emulatore fedele per rilevare la distanza D.
+            </li>
+            <li>
+                Gestione degli Stati di Anomalia Sonar: Validare il carico solo se D &lt; DFREE/2 per almeno 3 secondi; commutare il sistema nello stato Out of service qualora persista una lettura D &gt; DFREE per oltre 3 secondi.
+            </li>
+            <li>
+                Attuatore LED: Implementare il controllo dell'attuatore fisico (o simulato su Raspberry PicoW) per il lampeggio in engaged e la luce fissa/rossa in Out of service.
+            </li>
+        </ul>
+    </p>
+
+    <h3>Goal dello Sprint 3</h3>
+    <p>
+        Progettare e realizzare il sottosistema telemetrico sonar e l'attuatore led, integrando il firmware su microcontrollore o nodo dedicato. Completare la gestione delle anomalie telemetriche con transizione nello stato Out of service a display e gestire la segnalazione luminosa nelle diverse fasi operative.
+    </p>
+</div>
+ 
+<h2>Maintenance</h2> 
+<div class="remark">
+    <p>
+        
+    </p>
+</div>
+
+<div style="background-color: rgba(86, 56, 253, 0.9); color: white; padding: 30px; font-family: sans-serif; margin-top: 50px; border-radius: 8px;">
+    
+    <!-- Titolo principale centrato -->
+    <div style="text-align: center; color: #ffffff; font-size: 1.3em; font-weight: bold;">
+        Team di Sviluppo
+    </div>
+    
+    <!-- Link unico alla Git Repository del Progetto -->
+    <div style="text-align: center; margin-top: 10px; margin-bottom: 30px;">
+        <a href="https://github.com/ariannabuffoni/TF2026.git" target="_blank" style="color: #ffff00; text-decoration: underline; font-size: 1em; font-weight: bold;">
+            💻 GitHub Project Repository
+        </a>
+    </div>
+    
+    <!-- Griglia dei partecipanti (ora mostra solo foto, nome ed email) -->
+    <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; text-align: center;">
+        
+        <!-- Partecipante 1 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_ari.jpg" alt="Foto Arianna" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Arianna Buffoni</div>
+            <div style="font-size: 0.9em; color: #ffffff;">arianna.buffoni@studio.unibo.it</div>
+        </div>
+
+        <!-- Partecipante 2 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_desy.jpeg" alt="Foto Desirée" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Desirée Pellegrini</div>
+            <div style="font-size: 0.9em; color: #ffffff;">desiree.pellegrini@studio.unibo.it</div>
+        </div>
+
+        <!-- Partecipante 3 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_gian.jpeg" alt="Foto Gianluca" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Gianluca Varisco</div>
+            <div style="font-size: 0.9em; color: #ffffff;">gianluca.varisco@studio.unibo.it</div>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>
