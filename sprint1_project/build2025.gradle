@@ -162,9 +162,9 @@ task dovesiamo {
 
 distributions {
     main {
-        distributionBaseName = 'cargoservice'
+        distributionBaseName = 'sprint1_project'
         contents { 
-             from './cargoservice.pl'
+             from './sprint1_project.pl'
              from './sysRules.pl'
         }
     }

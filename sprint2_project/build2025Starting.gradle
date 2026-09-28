@@ -154,9 +154,9 @@ task dovesiamo {
 
 distributions {
     main {
-        distributionBaseName = 'sprint1_project'
+        distributionBaseName = 'sprint2_project'
         contents { 
-             from './sprint1_project.pl'
+             from './sprint2_project.pl'
              from './sysRules.pl'
              from './facadeConfig.json'
         }
