@@ -24,9 +24,100 @@ Sviluppare un prototipo software funzionante incentrato sul componente cargoserv
 e governare i cicli di temporizzazione per il disimpegno del sistema.
 </p>
 
+<h2>Introduction</h2>
+<p>
+A <i>Maritime Cargo shipping company</i> (from now on, simply <b>company</b>) intends to automate the operations of load of
+<b>containers</b> in the ship’s cargo hold (or simply <b>hold</b>). To this end, the company plans to employ a <i>Differential Drive
+Robot</i> (from now, called <b>cargorobot</b>).
+</p>
+
+<p>
+The <i>hold</i> is a rectangular, flat area with an Input/Output port (<b>IOPort</b>). The area provides <code>4 slots</code> to store the
+containers and a slot named <b>slot5</b>.
+</p>
+
+<div style="text-align: center;">
+	<img src="./img/TF26_immagine_consegna.png" alt="immagine consegna" width="50%" height="50%">
+</div>
+
+<p>
+	In the picture above:
+	<ul>
+		<li>
+			The <b>slots1-4</b> depict the hold areas reserved to store one <i>container</i> each,
+		</li>
+		<li>
+			The <b>slot5</b> depicts an area, where the <i>cargorobot</i> must temporarily store a container, before to place it in one of the <i>slots1-4</i>. During temporary storage, a ‘marker’ device labels the container with an identification barcode and signals when this marking activity is completed.
+		</li>
+		<li>
+			The <b>IOPort</b> is a device with a <b>pushbutton</b> and <b>a display</b>. The <i>pushbutton</i> is pressed by the customer in order to to send a request to load a container on the cargo. The <i>display</i> is used to show the answer to the request and to show the current state of the <i>hold</i>.
+		</li>
+		<li>
+			The <b>sensor</b> associated to the <i>IOPort</i> is a device (a <i>sonar</i>) used to detect the presence of a container, when it measures a distance D, such that <code>D &lt; DFREE/2</code>, during a reasonable time (e.g. 3 secs).
+		</li>
+	</ul>
+</p>
+
+
+
+<h2>Requirements</h2>
+<div class="remark">
+<p>
+	The company asks us to build service named <b>cargoservice</b> that should work as follows.
+</p>
+
+<p>
+	The <i>cargoservice</i> is able to receive a <b>request to load</b> a container sent by some customer by using the <i>pushbutton</i> of the <i>IOPort</i>.
+	<ul>
+		<li>
+			It sends the answer <code>retrylater</code>, if the <b>IOPort</b> is currently occupied by a container or if the system is <i>Out of service</i>
+		</li>
+		<li>
+			It rejects the request when the hold is already full, i.e. the <code>slots1-4</code> are already occupied.
+		</li>
+		<li>
+			Otherwise, it considers the system as <b>engaged</b>, detects a free slot and returns as answer the name of such a
+			reserved slot. While engaged, the system must blink a Led.
+		</li>
+	</ul>
+</p>
+
+<p>
+	When the <i>request</i> to load is accepted, the customer must move the container in the <i>sensor</i> area within prefixed amount
+	of time (e.g. 30 secs), otherwise the systems becomes <b>disengaged</b>. Then, the <i>cargoservice</i> uses the <i>cargorobot</i> to
+	move the container from the <i>IOPort</i> to the <i>slot5</i> (for marking the container) and then to the reserved slot.
+</p>
+
+<p>
+	The service must also show on the <i>display</i> on the <i>IOPort</i>:
+	<ul>
+		<li>
+			the current state of the <i>hold</i>
+		</li>
+		<li>
+			the message <b>‘Service working’</b>, when it is all is going well
+		</li>
+		<li>
+			the message <b>‘Out of service’</b> if the <i>sonar sensor</i> measures a distance <code>D &gt; DFREE</code> for at least 3 secs (perhaps a
+			failure of the <i>sonar</i>).
+		</li>
+	</ul>
+</p>
+</div>
+
+
+<h2>Requirement analysis</h2>
+<div class="remark">
+    <p>
+        L'analisi dei requisiti è stata svolta nello <a href="https://ariannabuffoni.github.io/TF2026/BuffoniPellegriniVarisco_TF26_v0.html" target="_blank">Sprint0</a>.
+    </p>
+</div>
 
 <h2>Problem analysis</h2>
 <div class="remark">
+    <p>
+        In questo Sprint, focalizzato sul core del servizio e sulla gestione dell'interazione con l'IOPort, l'analisi del problema affronta le criticità architetturali e tecnologiche derivanti dal passaggio a un sistema distribuito ed eterogeneo.
+    </p>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Individuazione dei componenti del sottosistema</h3>
@@ -41,7 +132,7 @@ e governare i cicli di temporizzazione per il disimpegno del sistema.
                 <b>ioport</b>: è l'entità di frontiera che interfaccia il mondo esterno (utente/browser) con il core applicativo. Gestisce stimoli concorrenti bidirezionali: cattura l'azione dell'utente (click sul pulsante) per inoltrare la richiesta a cargoservice, e riceve gli aggiornamenti di stato per notificarli all'interfaccia. Anch'esso deve essere modellato come QActor.
             </li>
             <li>
-                <b>Hold</b>: rappresenta la mappa logica degli alloggiamenti. Dato che non possiede un thread di controllo autonomo né reagisce spontaneamente a stimoli esterni, ma viene interrogata e manipolata in modo sequenziale unicamente dall'attore cargoservice, è opportunamente modellata come un POJO Java puro.
+                <b>hold</b>: rappresenta lo stato degli alloggiamenti della stiva. Dato che non possiede un thread di controllo autonomo né reagisce spontaneamente a stimoli esterni, ma viene interrogata e manipolata in modo sequenziale unicamente dall'attore cargoservice, è opportunamente modellata come un POJO Java puro.
             </li>
         </ul>
     </div>
@@ -99,25 +190,239 @@ e governare i cicli di temporizzazione per il disimpegno del sistema.
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Formato dei messaggi e scambio dati</h3>
-        <p>Mentre tra gli attori ioport e cargoservice si impiega la semantica nativa QAk (Request/Reply e Dispatch), sul canale WebSocket verso il browser si sceglie il formato String di IApplMessage:</p>
-        <pre>
-msg(button_pushed, dispatch, webgui, ioport, X, N)
-msg(hold_status, dispatch, ioport, webgui, SLOT_STATES, N)
-msg(working_state, dispatch, ioport, webgui, STATE, N)
-
-msg(containerSensed, dispatch, webgui, ioport, STATE, N)
-msg(outOfService, dispatch, webgui, ioport, CAUSE, N)
-msg(led, dispatch, ioport, webgui, STATE, N)
-        </pre>
-        <p>L'adapter si occupa della serializzazione e deserializzazione, mantenendo il frontend completamente agnostico rispetto alla sintassi IApplMessage di QAk.</p>
+        <h3>Il sistema distribuito e le problematiche di comunicazione</h3>
+        <p>
+            Con l'introduzione di entità web e di nodi separati, il sistema evolve in un'architettura distribuita: è quindi necessaria la rete per permettere la comunicazione tra le varie parti. Questo comporta un cambio di paradigma rispetto ai sistemi monolitici basati su chiamate procedurali all'interno di una singola JVM.
+        </p>
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Semplificazione a singolo contesto per lo Sprint 1</h3>
-        <p>In conformità con il piano evolutivo definito nello Sprint 0, per lo Sprint 1 entrambi gli attori (cargoservice e ioport) risiedono all'interno di un unico contesto logico locale (ctxcargoservice). Questo consente di concentrare la validazione sulla corretta dinamica degli stati, sulla gestione del tempo e sullo scambio messaggi, rimandando la distribuzione fisica su host e contesti remoti distinti allo Sprint 2.</p>
+        <h3>Formato dei messaggi e flussi di comunicazione</h3>
+        <p>
+            La gestione dei messaggi riflette la separazione tra il mondo eterogeneo del browser (basato su stringhe e canali WebSocket in ossequio ai principi della Clean Architecture) e il mondo formale degli attori QAk. L'attore ioport svolge il ruolo fondamentale di mediatore e traduttore di frontiera, evitando che la logica di business centrale sia accoppiata ai dettagli tecnologici della GUI.<br/>
+            I messaggi si suddividono in base alla natura dell'interazione:
+            <ol>
+                <li>
+                    <b>Messaggi tra l'attore ioport e il cargoservice</b><br/>
+                    Quando l'attore ioport riceve il dispatch button_pushed dalla GUI, non si limita a duplicare l'informazione, ma la traduce in una richiesta formale di servizio (Request), poiché l'IOPort si aspetta una risposta vincolante dal sistema centrale, come richiesto dai requisiti. I messaggi necessari erano già stati delineati nell'analisi dei requisiti:
+                    <ul>
+                        <li>
+                            <code>loadrequest : loadrequest(IOPORT_STATE)</code> (Request): Inviata da ioport a cargoservice per richiedere l'inserimento di un container, passando lo stato corrente della porta.
+                        </li>
+                        <li>
+                            <code>engaged : engaged(RESERVED_SLOT, HOLD_STATE)</code> (Reply): Risposta di accettazione con cui il cargoservice assegna uno slot libero e restituisce lo stato aggiornato della stiva.
+                        </li>
+                        <li>
+                            <code>reject : reject(HOLD_STATE)</code> (Reply): Risposta di rifiuto emessa quando la stiva è satura (slot 1-4 occupati).
+                        </li>
+                        <li>
+                            <code>retrylater : retrylater(CAUSE, HOLD_STATE)</code> (Reply): Risposta di attesa inviata se la porta è momentaneamente occupata o il sistema si trova in condizioni particolari.
+                        </li>
+                    </ul>
+                    Per la gestione asincrona degli aggiornamenti interni (come i timeout o le notifiche autonome di display), il cargoservice utilizza specifici Dispatch di servizio verso l'ioport:
+                    <ul>
+                        <li>
+                            <code>updateHoldDisplay : updateHoldDisplay(STATE, HOLD_STATE, MSG)</code>
+                        </li>
+                        <li>
+                            <code>updateWorkingState : updateWorkingState(STATE)</code>
+                        </li>
+                    </ul>
+                    Questi messaggi sono utilizzati in modo asincrono per consentire al cargoservice di notificare autonomamente all'ioport variazioni di stato o scadenze temporali (come il timeout dei 30 secondi), senza che vi sia una richiesta esplicita contestuale da parte dell'utente.
+                </li>
+                <li>
+                    <b>Messaggi tra Web GUI e l'attore ioport</b><br/>
+                    Mentre tra gli attori ioport e cargoservice si impiega la semantica nativa QAk (Request/Reply e Dispatch), sul canale WebSocket verso il browser si sceglie il formato String di IApplMessage:
+                    <pre>
+msg(button_pushed, dispatch, webgui, ioport, X, N)
+msg(hold_status, dispatch, ioport, webgui, SLOT_STATES, N)
+msg(working_state, dispatch, ioport, webgui, STATE, N)
+</pre>
+                    In conformità con il principio della Clean Architecture, si è preferito il formato String piuttosto che quello JSON, in quanto in questo modo è la pagina Web ad adattarsi all'applicazione e non viceversa.<br/>
+                    L'adapter si occupa della serializzazione e deserializzazione, mantenendo il frontend completamente agnostico rispetto alla sintassi IApplMessage di QAk.<br/>
+                    La Web GUI non invia comandi diretti al servizio centrale, ma genera eventi asincroni di frontiera:
+                    <ul>
+                        <li>
+                            <code>button_pushed</code>: Dispatch inviato dalla GUI (tramite l'adapter) all'attore ioport per notificare la pressione del pulsante da parte dell'utente.
+                        </li>
+                        <li>
+                            <code>hold_status</code> / <code>working_state</code>: Dispatch di ritorno con cui l'attore ioport aggiorna i componenti visivi della pagina web in base agli stati elaborati dal sistema.
+                        </li>
+                    </ul>
+                </li>
+            </ol>
+            
+        </p>
     </div>
 
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3><a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1_problem/src/sprint1_problem.qak" target="_blank">Modello dall'analista del problema</a></h3>
+        <p>
+            A conclusione dell'analisi del problema, al fine di formalizzare il comportamento dinamico del sistema e le interazioni logiche tra gli attori senza dipendere da dettagli tecnologici prematuri, viene definito il Modello dell'Analista del Problema.<br/>
+            Questo modello estende i requisiti introducendo la struttura formale e le macchine a stati degli attori cargoservice e ioport, la gestione dei vincoli temporali (come il timeout di 30 secondi) e lo scambio dei messaggi logici essenziali. Esso costituisce il ponte concettuale ideale tra la specifica funzionale di alto livello e la successiva fase di progettazione e implementazione tecnologica.
+            <pre>
+System cargoservice
+
+/*
+ * MODELLO DELL'ANALISTA DEL PROBLEMA
+ */
+ 
+// -----definizione dei messaggi-----
+
+// tra l'attore ioport e il cargoservice
+Request loadrequest     : loadrequest(IOPORT_STATE)
+Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject            : reject(HOLD_STATE) for loadrequest
+Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+Dispatch updateHoldDisplay : updateHoldDisplay(STATE, HOLD_STATE, MSG)
+Dispatch updateWorkingState : updateWorkingState(STATE) 
+
+// tra Web GUI e l'attore ioport
+Dispatch button_pushed : button_pushed(X)
+Dispatch hold_status : hold_status(SLOT_STATES)
+Dispatch working_state : working_state(STATE)
+
+// -----definizione del contesto-----
+Context ctxcargoservice ip [host="localhost" port=8120]
+
+// -----definizione degli attori-----
+QActor cargoservice context ctxcargoservice{
+	[#
+		var HOLD_FULL = false
+		var ENGAGED = false
+		var WORKING = true
+	#]
+	State s0 initial{
+		println("$name | starts ") color magenta
+	}
+	Goto idle
+	
+	State idle{
+		[# var Msg = "cargoservice partito"#]
+		println("$name | Sistema in stato IDLE") color magenta
+		forward ioport -m updateHoldDisplay : updateHoldDisplay($ENGAGED, $HOLD_FULL, $Msg)
+		forward ioport -m updateWorkingState : updateWorkingState($WORKING)
+	}
+	Transition t0 
+		whenRequest loadrequest -> handleLoadRequest
+
+	State handleLoadRequest{
+		onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [# 
+                var IoportState = payloadArg(0).toBoolean()
+                
+                if (IoportState) {
+                	var Cause = "porta_occupata"
+                    #] 
+                    replyTo loadrequest with retrylater : retrylater($Cause, $HOLD_FULL)
+                    println("$name | retrylater($Cause, $HOLD_FULL)") color magenta 
+                    [#
+                } else if (HOLD_FULL) {
+                    #] 
+                    replyTo loadrequest with reject : reject($HOLD_FULL) 
+                    println("$name | reject($HOLD_FULL)") color magenta
+                    [#
+                } else {
+                    HOLD_FULL = true
+                    var Slot = "slot1"
+                    ENGAGED = true
+                    #] 
+                    replyTo loadrequest with engaged : engaged($Slot, $HOLD_FULL)
+                    println("$name | engaged($Slot, $HOLD_FULL)") color magenta
+                    [#
+                }
+            #]
+        }
+	}
+	Goto engagedState if [# ENGAGED #] else idle
+	
+	State engagedState{
+		println("$name | Sistema in stato IDLE") color magenta
+	}
+	Transition t0
+		whenTime 30000 -> disengagedState
+		whenRequest loadrequest -> handleBusyRequest
+		// whenMsg occupazione del sensore -> gestione del carico
+		
+	State handleBusyRequest {
+		[#
+			var Cause = "sistema_engaged"
+        #] 
+        replyTo loadrequest with retrylater : retrylater($Cause, $HOLD_FULL)
+        println("$name | retrylater($Cause, $HOLD_FULL)") color magenta 
+    }
+    Goto engagedState
+	
+	State disengagedState{
+		println("$name | Sistema in stato DISENGAGED") color magenta
+		[# 
+			ENGAGED = false 
+			var Msg = "sistema_disengaged"
+		#]
+		forward ioport -m updateHoldDisplay : updateHoldDisplay($ENGAGED, $HOLD_FULL, $Msg)
+	}
+	Goto idle
+}
+
+QActor ioport context ctxcargoservice{
+	[#
+		var IoportState = false
+	#]
+	State s0 initial{
+		println("$name | starts ") color blue
+	}
+	Goto acceptEvents
+	
+	State acceptEvents{
+		println("$name | in attesa di eventi...") color blue
+	}
+	Transition t0 
+        whenMsg button_pushed       -> handleButton
+        whenMsg updateHoldDisplay   -> handleCoreHoldUpdate
+        whenMsg updateWorkingState  -> handleCoreWorkingState
+		
+	State handleButton{
+		println("$name | invio loadrequest a cargoservice, ioport libera") color blue
+		request cargoservice -m loadrequest : loadrequest($IoportState)
+	}
+	Transition t1 
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
+    
+    State handleEngaged{
+    	printCurrentMessage color blue
+    	// comunicazione di Hold Status tramite Adapter
+    }
+    Goto acceptEvents
+    
+    State handleReject{
+    	printCurrentMessage color blue
+    	// comunicazione di Hold Status tramite Adapter
+    }
+    Goto acceptEvents
+    
+    State handleRetryLater{
+    	printCurrentMessage color blue
+    	// comunicazione di Hold Status tramite Adapter
+    }
+    Goto acceptEvents
+    
+    State handleCoreHoldUpdate{
+    	printCurrentMessage color blue
+    	// comunicazione di Hold Status tramite Adapter
+    }
+    Goto acceptEvents
+    
+    State handleCoreWorkingState{
+    	printCurrentMessage color blue
+    	// comunicazione di Working State tramite Adapter
+    }
+    Goto acceptEvents
+}
+</pre>
+        </p>
+    </div>
 </div>
 
 
@@ -139,28 +444,28 @@ msg(led, dispatch, ioport, webgui, STATE, N)
         <tbody>
             <!-- Riga 1 -->
             <tr style="background-color: #ffffff;">
-                <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">TC1: Richiesta accettata</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Richiesta accettata</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Almeno 1 slot <code>FREE</code> nella Hold; sensore non occupato</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>button_pushed</code> da <code>ioport</code></td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invia reply <code>engaged(RESERVED_SLOT, STATE)</code>; passa da idle a engaged; <code>ioport</code> riceve e notifica la GUI</td>
             </tr>
             <!-- Riga 2 -->
             <tr style="background-color: #f7f9ff;">
-                <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">TC2: Rifiuto IOPort occupato</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Rifiuto IOPort occupato</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Flag sensore su occupato (<code>setOccupied(true)</code>)</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>button_pushed</code> da <code>ioport</code></td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invia reply <code>retrylater(CAUSE, HOLD_STATE)</code>; lo stato resta invariato (idle)</td>
             </tr>
             <!-- Riga 3 -->
             <tr style="background-color: #ffffff;">
-                <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">TC3: Rifiuto stiva piena</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Rifiuto stiva piena</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Tutti e 4 gli slot occupati/riservati nella Hold</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Ricezione dispatch <code>button_pushed</code> con sensore libero</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> risponde con <code>reject(HOLD_STATE)</code>; nessuno slot viene modificato</td>
             </tr>
             <!-- Riga 4 -->
             <tr style="background-color: #f7f9ff;">
-                <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">TC4: Timeout 30 secondi</td>
+                <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Timeout 30 secondi</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Sistema appena passato a engaged, slot riservato</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;">Nessun evento di carico per 30000 ms (<code>whenTime 30000</code>)</td>
                 <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>cargoservice</code> invoca <code>releaseSlot()</code> sulla Hold, emette dispatch <code>updateHoldDisplay</code> verso ioport con messaggio di timeout e torna allo stato idle</td>
@@ -178,59 +483,30 @@ msg(led, dispatch, ioport, webgui, STATE, N)
     </p>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Definizione dei Messaggi e del Contesto (sprint1.qak)</h3>
-        <p>I messaggi applicativi scambiati tra le entità sono così formalizzati:</p>
-        <pre>
-Request loadrequest     : loadrequest(IOPORT_STATE)
-Reply retrylater        : retrylater(CAUSE, HOLD_STATE) for loadrequest
-Reply reject            : reject(HOLD_STATE) for loadrequest
-Reply engaged           : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
-Dispatch updateHoldDisplay   : updateHoldDisplay(STATE, HOLD_STATE, MSG)
-Dispatch updateWorkingState : updateWorkingState(STATE)
-
-Dispatch button_pushed  : button_pushed(X)
-Dispatch working_state  : working_state(STATE)
-Dispatch hold_status    : hold_status(STATE, HOLD_STATE, MSG)
-
-Dispatch outOfService   : outOfService(CAUSE)
-Dispatch containerSensed: containerSensed(VAL)
-Dispatch led            : led(STATE)
-        </pre>
-        <ul>
-            <li>
-                <b>loadrequest / retrylater / reject / engaged</b>: definiscono il protocollo transazionale request-reply con cui ioport interroga cargoservice.
-            </li>
-            <li>
-                <b>button_pushed / setOccupied</b>: sono messaggi asincroni (dispatch) iniettati dall'adapter verso ioport per notificare le azioni dell'utente sulla Web GUI.
-            </li>
-            <li>
-                <b>updateHoldDisplay</b>: dispatch con cui cargoservice notifica autonomamente a ioport un cambio di stato da visualizzare sul display (es. a seguito dello scadere del timeout).
-            </li>
-            <li>
-                <b>containerSensed</b>: dispatch inviato dal Mock del sensore (Web GUI) verso ioport (e da questo inoltrato a cargoservice) per notificare il caricamento o la rimozione fisica del container dalla zona di carico.
-            </li>
-            <li>
-                <b>outOfService</b>: dispatch asincrono generato dal Mock di simulazione guasto o dal Core per notificare una condizione di errore imprevista (es. errore sensore) e forzare il blocco del sistema.
-            </li>
-            <li>
-                <b>updateWorkingState</b>: dispatch con cui cargoservice notifica a ioport la variazione dello stato operativo generale del servizio (es. passaggio da WORKING ad OUT_OF_SERVICE).
-            </li>
-            <li>
-                <b>hold_status</b>: dispatch inviato dall'adapter verso la Web GUI per aggiornare le tre linee del display (stato corrente, stato slot stiva e messaggio informativo).
-            </li>
-            <li>
-                <b>working_state</b>: dispatch inviato dall'adapter verso la Web GUI per aggiornare la spia/etichetta dello stato operativo generale del servizio.
-            </li>
-            <li>
-                <b>led</b>: Dispatch per sincronizzare lo stato dell'indicatore luminoso (spento, lampeggiante, rosso) tra cargoservice, ioport e il LED visualizzato sulla Web GUI.
-            </li>
-        </ul>
+        <h3>L'utilizzo di componenti e messaggi mock in questa fase</h3>
+        <p>
+            Per consentire lo sviluppo e il test rigoroso del cargoservice e della Web GUI in questo Sprint 1 — in attesa di integrare i dispositivi hardware reali (sonar, LED e robot fisico) previsti nei successivi sprint — sono stati introdotti specifici messaggi e meccanismi di Mock:
+            <ul>
+                <li>
+                    Simulazione del sensore (<code>containerSensed</code>): Attraverso un apposito comando o interruttore di controllo presente sulla Web GUI, è possibile simulare la variazione di distanza rilevata dal sonar (DFREE), iniettando l'evento di presenza container che attiva la presa in carico del sistema.
+                </li>
+                <li>
+                    Simulazione di guasto (<code>outOfService</code>): Permette di testare la reattività del core di fronte a condizioni anomale o malfunzionamenti del sensore, forzando la transizione allo stato protetto di blocco.
+                </li>
+                <li>
+                    Gestione dello stato visivo (<code>led</code>): Sincronizza lo stato dell'indicatore luminoso (spento, lampeggiante, rosso di errore) tra il core, l'attore di frontiera e la rappresentazione grafica sul browser.
+                </li>
+            </ul>
+        </p>
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>L'attore <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1/src/sprint1.qak" target="_blank">cargoservice</a></h3>
+        <h3>L'attore <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1_project/src/sprint1_project.qak" target="_blank">cargoservice</a> e la gestione della stiva (<a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1_project/utils/cargoservice/Hold.java" target="_blank">Hold</a>)</h3>
         <p>
             L'attore gestisce la logica di business e governa il timeout di 30 secondi per la transizione tra gli stati idle, engaged e disengaged. Incapsula l'oggetto Hold mediante la direttiva withobj.
+        </p>
+        <p>
+            La classe Java Hold agisce come POJO strutturato e offre metodi sicuri e sincroni invocati dal core per verificare se la stiva è piena (isFull()), prenotare lo slot libero successivo (reserveNextFreeSlot()), marcare lo slot come occupato o rilasciarlo in caso di timeout o errore.
         </p>
         <pre>
 QActor cargoservice context ctxcargoservice 
@@ -421,11 +697,10 @@ QActor cargoservice context ctxcargoservice
     Goto outOfServiceState
 }
         </pre>
-        <p><i>Osservazione sul Timeout:</i> La transizione temporizzata <code>Transition t1 whenTime 30000 -&gt; disengaged</code> è governata interamente dal runtime QAk. Il disimpegno (disengaged) è un'iniziativa autonoma di cargoservice che propaga una notifica push (updateHoldDisplay) verso ioport senza che quest'ultimo l'abbia esplicitamente richiesta.</p>
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>L'attore <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1/src/sprint1.qak" target="_blank">ioport</a></h3>
+        <h3>L'attore <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1_project/src/sprint1_project.qak" target="_blank">ioport</a></h3>
         <p>
             L'attore funge da mediatore: reagisce agli stimoli provenienti dalla Web GUI tramite l'adapter, invia la richiesta a cargoservice, e riceve le notifiche di aggiornamento.
         </p>
@@ -557,9 +832,9 @@ QActor ioport context ctxcargoservice {
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>L'adattatore WebSocket: <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1/utils/ioport/IOPortWsAdapter.java" target="_blank">IOPortWsAdapter</a></h3>
+        <h3>L'adattatore WebSocket: <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1_project/utils/ioport/IOPortWsAdapter.java" target="_blank">IOPortWsAdapter</a></h3>
         <p>
-            L'adapter avvia un server Javalin su porta 7070, serve le pagine statiche della GUI e gestisce la connessione WebSocket:
+            Per colmare il divario tecnologico tra il mondo asincrono degli attori QAk e il browser web, l'adapter avvia un server Javalin su porta 7070, serve le risorse statiche della GUI e gestisce la connessione WebSocket full-duplex. La classe gestisce in modo thread-safe la coda dei client connessi e traduce i messaggi stringa ricevuti in IApplMessage formali tramite il metodo sendMsgToMyself:
         </p>
         <pre>
 package ioport;
@@ -651,7 +926,7 @@ public class IOPortWsAdapter {
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>La Web GUI (ioport_gui.html e wscontrol.js)</h3>
+        <h3>La Web GUI (<a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1_project/utils/gui/ioport_gui.html" target="_blank">ioport_gui.html</a> e <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint1_project/utils/gui/ioport_gui.js" target="_blank">ioport_gui.js</a>)</h3>
         <p>Il frontend web non contiene logica applicativa né di controllo:</p>
         <ul>
             <li>si limita a visualizzare lo stato del sistema (STATE), l'occupazione della stiva (HOLD) e i messaggi operativi.</li>
@@ -677,7 +952,7 @@ public class IOPortWsAdapter {
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Compilazione ed Esecuzione</h3>
-        <p>Dalla radice del progetto dello Sprint 1 (<code>sprint1/</code>), eseguire da riga di comando:</p>
+        <p>Dalla radice del progetto dello Sprint 1 (<code>sprint1_project/</code>), eseguire da riga di comando:</p>
         <pre>
 ./gradlew run
         </pre>
@@ -752,7 +1027,7 @@ public class IOPortWsAdapter {
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Goal dello Sprint 2</h3>
         <p>
-            Progettare e realizzare l'attore <code>cargorobot</code> e integrarlo con l'ambiente virtuale <code>RobotSmart26</code> per eseguire la missione autonoma di trasferimento container (IOPort -&gt; slot 5 -&gt; slot assegnato -&gt; HOME). Modellare il componente <code>marker</code> per la sincronizzazione del processo di marcatura nello slot 5 e distribuire l'architettura su contesti QAk eterogenei e separati.
+            Progettare e realizzare l'attore <code>cargorobot</code> e integrarlo con l'ambiente virtuale <code>RobotSmart26</code> per eseguire la missione autonoma di trasferimento container (IOPort -&gt; slot 5 -&gt; slot assegnato -&gt; HOME). Modellare il componente <code>marker</code> per la sincronizzazione del processo di marcatura nello slot 5.
         </p>
     </div>
 
