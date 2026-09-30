@@ -243,6 +243,13 @@ containers and a slot named <b>slot5</b>.
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Reazione ai Fallimenti di Movimento</h3>
+        <p>
+            Se RobotSmart26 risponde con moverobotfailed(PLANDONE, PLANTODO) (es. percorso ostruito o guasto simulato), cargorobot interrompe la missione, entra in uno stato di sicurezza (halted) e notifica cargoservice tramite il dispatch transportFailed. La decisione su come gestire il sistema (annullamento della prenotazione o stato di allarme) rimane in capo all'orchestratore.
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Modellazione del Marker (Slot 5)</h3>
         <p>
             Il testo del problema descrive il marker come un dispositivo situato nello slot 5 per l'etichettatura barcode temporanea.
@@ -260,11 +267,109 @@ containers and a slot named <b>slot5</b>.
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Reazione ai Fallimenti di Movimento</h3>
+    <h3>Gestione degli Slot e Modellazione della Stiva (Hold)</h3>
         <p>
-            Se RobotSmart26 risponde con moverobotfailed(PLANDONE, PLANTODO) (es. percorso ostruito o guasto simulato), cargorobot interrompe la missione, entra in uno stato di sicurezza (halted) e notifica cargoservice tramite il dispatch transportFailed. La decisione su come gestire il sistema (annullamento della prenotazione o stato di allarme) rimane in capo all'orchestratore.
+            Nel corso dello Sprint 1, la classe Hold si limitava a tenere traccia della disponibilità numerica e dello stato astratto degli alloggiamenti (FREE, RESERVED, OCCUPIED) per abilitare le risposte di accettazione o rifiuto delle richieste. Con l'introduzione della movimentazione autonoma del DDR nello Sprint 2, la stiva deve arricchirsi di una rappresentazione spaziale conforme al sistema di riferimento a coordinate cartesiane richiesto da RobotSmart26.<br/>
+            <h4>Separazione tra Topologia Immutabile e Stato Dinamico</h4>
+        <p>
+            La gestione delle informazioni all'interno della stiva presenta due componenti con requisiti di mutabilità opposti:
+            <ol>
+                <li>
+                    Layout Fisso e Topologia Immutabile: Comprende le coordinate cartesiane (X, Y) delle posizioni operative fisse della stiva, definite in base alla griglia euclidea introdotta nello Sprint 0:
+                    <ul>
+                        <li>
+                            HOME (0, 0): punto di stazionamento iniziale e finale del robot;
+                        </li>
+                        <li>
+                            IOPort (X_IN, Y_IN): area di carico e accesso antistante la porta;
+                        </li>
+                        <li>
+                            slot5 (X_S5, Y_S5): area per la sosta temporanea e la marcatura barcode;
+                        </li>
+                        <li>
+                            slot1..4 (X_i, Y_i): coordinate di deposito dei quattro alloggiamenti definitivi.
+                            Questi valori sono costanti di progetto e non cambiano mai nel corso dell'esecuzione. Possono quindi essere letti in totale sicurezza e concorrenza da più attori senza incorrere in condizioni di corsa (race condition).
+                        </li>
+                    </ul>
+                </li>
+                <li>
+                    Stato Dinamico di Occupazione: Riguarda la mutabilità dello stato dei singoli alloggiamenti (FREE, RESERVED, OCCUPIED) e l'identificativo dell'eventuale slot riservato correntemente in attesa di deposito. Poiché questo stato è mutevole, deve risiedere esclusivamente all'interno dell'istanza Hold gestita dall'attore orchestratore cargoservice.
+                </li>
+            </ol>
+            Questa distinzione architetturale consente a cargorobot di istanziare una copia locale di sola lettura di Hold, interrogandola unicamente per ricavare le coordinate dei punti di interesse (getHomePosition(), getIOPortPosition(), getSlot5Position()), senza poter alterare indebitamente lo stato delle riserve della stiva.</p>
+            <h4>Interfaccia di Hold</h4>
+        <p>
+            L'entità Hold incapsula la mappa della stiva esponendo metodi sincroni ad alto livello:
         </p>
-    </div>
+            <table style="width: 100%; border-collapse: collapse; margin: 15px 0; border: 1.5px solid #a394ff;">
+    <thead>
+        <tr style="background-color: #d9d4ff; color: #000000; text-align: center;">
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 30%;">Metodo</th>
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 22%;">Chiamante</th>
+            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 48%;">Scopo e Responsabilità</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Riga 1 -->
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
+                <code>reserveNextFreeSlot()</code> /<br>
+                <code>reserveFirstFree()</code>
+            </td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">
+                Ricerca sequenziale del primo slot con stato <code>FREE</code>. Se trovato, lo marca provvisoriamente come <code>RESERVED</code> e ne restituisce l'indice (1..4); se tutti sono impegnati o la stiva è piena, restituisce <code>-1</code>.
+            </td>
+        </tr>
+        <!-- Riga 2 -->
+        <tr style="background-color: #f7f9ff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
+                <code>releaseSlot(slotId)</code> /<br>
+                <code>releaseReserved()</code>
+            </td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">
+                Chiamato in caso di timeout dei 30s o a seguito di un fallimento del movimento (<code>transportFailed</code>): ripristina lo stato dello slot prenotato a <code>FREE</code>.
+            </td>
+        </tr>
+        <!-- Riga 3 -->
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
+                <code>setSlotOccupied(slotId)</code>
+            </td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">
+                Invocato alla ricezione di <code>transportDone</code>: commuta in modo definitivo lo stato dello slot da <code>RESERVED</code> a <code>OCCUPIED</code>.
+            </td>
+        </tr>
+        <!-- Riga 4 -->
+        <tr style="background-color: #f7f9ff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
+                <code>getSlotX(slotId)</code> /<br>
+                <code>getSlotY(slotId)</code>
+            </td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">
+                <code>cargoservice</code> /<br>
+                <code>cargorobot</code>
+            </td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">
+                Restituisce la coppia di coordinate cartesiane associate all'alloggiamento target, passate come argomenti nella richiesta <code>transportContainer</code>.
+            </td>
+        </tr>
+        <!-- Riga 5 -->
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
+                <code>getHoldStateString()</code> /<br>
+                <code>displayStatus()</code>
+            </td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">
+                Serializza lo stato corrente dei 4 slot in una stringa compatta (es. <code>1:OCC,2:FREE,3:FREE,4:FREE</code>) per l'aggiornamento a display tramite l'IOPort.
+            </td>
+        </tr>
+    </tbody>
+</table>
+</div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
         <h3>Architettura dei Contesti per lo Sprint 2</h3>
@@ -287,34 +392,177 @@ containers and a slot named <b>slot5</b>.
         <p>
             Dall'analisi precedente segue il protocollo dei messaggi del modello qak (sprint2.qak ).
             <pre>
-System sprint2
+System sprint2_problem
 
-// --- Comunicazione IOPort <-> CargoService (dallo Sprint 1) ---
-Request loadrequest         : loadrequest(IOPORT_STATE)
-Reply   retrylater          : retrylater(CAUSE, HOLD_STATE) for loadrequest
-Reply   reject              : reject(HOLD_STATE) for loadrequest
-Reply   engaged             : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+/*
+ * MODELLO DELL'ANALISTA DEL PROBLEMA
+ */
 
-Dispatch updateHoldDisplay  : updateHoldDisplay(STATE, HOLD_STATE, MSG)
-Dispatch updateWorkingState: updateWorkingState(STATE)
-Dispatch button_pushed     : button_pushed(X)
-Dispatch containerSensed   : containerSensed(X)
+// --- Messaggi ereditati dallo Sprint 1 ---
+Request loadrequest : loadrequest(IOPORT_STATE)
+Reply retrylater    : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply reject        : reject(HOLD_STATE) for loadrequest
+Reply engaged       : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
 
-// --- Comunicazione CargoService <-> CargoRobot ---
-Request  transportContainer : transportContainer(SLOT, TARGETX, TARGETY)
-Reply    transportDone      : transportDone(SLOT) for transportContainer
-Reply    transportFailed    : transportFailed(CAUSE) for transportContainer
+Dispatch button_pushed    : button_pushed(X)
+Dispatch containerSensed  : containerSensed(X)
+Dispatch updateHoldDisplay : updateHoldDisplay(STATE, HOLD_STATE, MSG)
 
-// --- Interfaccia nativa verso RobotSmart26 ---
-Request  moverobot          : moverobot(TARGETX, TARGETY, STEPTIME)
-Reply    moverobotdone      : moverobotok(ARG) for moverobot
-Reply    moverobotfailed    : moverobotfailed(PLANDONE, PLANTODO) for moverobot
+// --- Nuovi messaggi definiti nell'Analisi dello Sprint 2 ---
+Request transportContainer : transportContainer(SLOT, TARGETX, TARGETY)
+Reply transportDone        : transportDone(SLOT) for transportContainer
+Reply transportFailed      : transportFailed(CAUSE) for transportContainer
+
+// Messaggi di comunincazione definiti da RobotSmart26
+Request moverobot          : moverobot(TARGETX, TARGETY, STEPTIME)
+Reply moverobotdone        : moverobotok(ARG) for moverobot
+Reply moverobotfailed      : moverobotfailed(PLANDONE, PLANTODO) for moverobot
 
 // --- Contesti di Esecuzione ---
 Context ctxcargoservice ip [host="localhost" port=8120]
-Context ctxrobotsmart   ip [host="127.0.0.1" port=8020]
+//Context ctxrobotsmart   ip [host="127.0.0.1" port=8020] -> per l'analisi del problema faremo tutto nello stesso contesto
 
-ExternalQActor robotsmart context ctxrobotsmart
+// 1. Mock del servizio esterno RobotSmart26 (per isolare l'analisi del problema)
+QActor robotsmart_mock context ctxcargoservice {
+	[#
+		var Success = 10	
+	#]
+    State s0 initial {
+        println("$name | Mock  per Analisi starting...") color green
+    }
+    Goto idle
+    
+    State idle{
+    	println("$name | waiting...") color green
+    }
+    Transition t0 whenRequest moverobot -> handleMove
+    
+    State handleMove {
+        println("$name | moving...") color green
+        // Simula il tempo di spostamento del robot sulla griglia
+        delay 3000
+        // Risponde con successo simulato
+        if [#Success > 0#]{
+        	[# Success = Success - 1 #]
+        	replyTo moverobot with moverobotdone : moverobotok($Success)
+        }
+        else{
+        	[#
+        		var Plandone = "none"
+        		var Plantodo = "move"	
+        	#]
+        	replyTo moverobot with moverobotfailed : moverobotfailed($Plandone, $Plantodo)
+        }
+    }
+    Goto idle
+}
+
+
+QActor cargorobot context ctxcargoservice {
+	[#
+    	var Slot = "slotX"
+    	var X = 0
+    	var Y = 0
+    	var StepTime = 10
+   	#]
+    State s0 initial {
+        println("$name | starting...") color cyan
+    }
+    Goto idle
+    
+    State idle{
+    	println("$name | waiting for a container...") color cyan
+    }
+    Transition t0 whenRequest transportContainer -> executeTransportSlot5
+    
+    State executeTransportSlot5 {
+    	println("$name | deposit in slot5") color cyan
+    	onMsg (transportContainer : transportContainer(SLOT, TARGETX, TARGETY)){
+    		[#
+    			Slot = payloadArg(0)
+    			X = payloadArg(1).toInt()
+    			Y = payloadArg(2).toInt()
+    			var X5 = 5
+    			var Y5 = 5
+    		#]
+    		request robotsmart_mock -m moverobot : moverobot ($X5, $Y5, $StepTime)
+    	}
+    }
+    Transition t1
+    	whenReply moverobotdone -> marking
+    	whenReply moverobotfailed -> handleFinish
+    	
+    State marking{
+    	println("$name | marker working...") color cyan
+    }
+    Transition t2
+    	whenTime 5000 -> executeTransport
+    
+    State executeTransport{
+    	println ("$name | moving to final slot") color cyan
+    	request robotsmart_mock -m moverobot : moverobot ($X, $Y, $StepTime)
+    }
+    Transition t3
+    	whenReply moverobotdone -> backHome
+    	whenReply moverobotfailed -> handleFinish
+    	
+    State backHome{
+    	[#
+    		var XHOME = 0
+    		var YHOME = 0 	
+    	#]
+    	println ("$name | going back home") color cyan
+    	request robotsmart_mock -m moverobot : moverobot ($XHOME, $YHOME, $StepTime)
+    }
+    Transition t4
+    	whenReply moverobotdone -> handleFinish
+    	whenReply moverobotfailed -> handleFinish
+    
+    State handleFinish{
+    	onMsg (moverobotdone : moverobotok(ARG)){
+    		println ("$name | trasporto finito con successo") color cyan
+    		replyTo transportContainer with transportDone : transportDone($Slot)
+    	}
+    	onMsg (moverobotfailed : moverobotfailed(PLANDONE, PLANTODO)){
+    		[# var Cause = "fail_RobotSmart26" #]
+    		println ("$name | trasporto fallito") color cyan
+    		replyTo transportContainer with transportFailed : transportFailed($Cause)
+    	}
+    }
+    Goto idle
+}
+
+QActor cargoservice_ridotto context ctxcargoservice{
+	[#
+		var Slot = "slot1"
+		var X = 2
+		var Y = 2
+	#]
+	State s0 initial {
+		println("")
+	}
+	Goto handleContainer
+	
+	State handleContainer {
+        println("$name | Container rilevato -> richiesta di movimento del robot") color magenta
+        request cargorobot -m transportContainer : transportContainer ($Slot, $X, $Y)
+    }
+    Transition t0
+    	whenReply transportDone -> handleTransportComplited
+    	whenReply transportFailed -> handleTransportFailed
+    	
+    State handleTransportComplited{
+    	// aggiornamento display e liberazione area sensore
+    	println("$name | il container è stato prelevato, marcato e depositato nello slot assegnato") color magenta
+    }
+    Transition t1
+    	whenTime 5000 -> handleContainer
+    
+    State handleTransportFailed{
+    	// aggiornamento dispay e gestione dell'errore
+    	println("$name | si è verificato un errore durante il trasporto. OUT OF SERVICE!") color magenta
+    }
+}
             </pre>
         </p>
     </div>
@@ -523,109 +771,8 @@ State handleTransportFailure {
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Gestione degli Slot e Modellazione della Stiva (Hold)</h3>
-        <p>
-            Nel corso dello Sprint 1, la classe Hold si limitava a tenere traccia della disponibilità numerica e dello stato astratto degli alloggiamenti (FREE, RESERVED, OCCUPIED) per abilitare le risposte di accettazione o rifiuto delle richieste. Con l'introduzione della movimentazione autonoma del DDR nello Sprint 2, la stiva deve arricchirsi di una rappresentazione spaziale conforme al sistema di riferimento a coordinate cartesiane richiesto da RobotSmart26.<br/>
-            <h4>Separazione tra Topologia Immutabile e Stato Dinamico</h4>
-        <p>
-            La gestione delle informazioni all'interno della stiva presenta due componenti con requisiti di mutabilità opposti:
-            <ol>
-                <li>
-                    Layout Fisso e Topologia Immutabile: Comprende le coordinate cartesiane (X, Y) delle posizioni operative fisse della stiva, definite in base alla griglia euclidea introdotta nello Sprint 0:
-                    <ul>
-                        <li>
-                            HOME (0, 0): punto di stazionamento iniziale e finale del robot;
-                        </li>
-                        <li>
-                            IOPort (X_IN, Y_IN): area di carico e accesso antistante la porta;
-                        </li>
-                        <li>
-                            slot5 (X_S5, Y_S5): area per la sosta temporanea e la marcatura barcode;
-                        </li>
-                        <li>
-                            slot1..4 (X_i, Y_i): coordinate di deposito dei quattro alloggiamenti definitivi.
-                            Questi valori sono costanti di progetto e non cambiano mai nel corso dell'esecuzione. Possono quindi essere letti in totale sicurezza e concorrenza da più attori senza incorrere in condizioni di corsa (race condition).
-                        </li>
-                    </ul>
-                </li>
-                <li>
-                    Stato Dinamico di Occupazione: Riguarda la mutabilità dello stato dei singoli alloggiamenti (FREE, RESERVED, OCCUPIED) e l'identificativo dell'eventuale slot riservato correntemente in attesa di deposito. Poiché questo stato è mutevole, deve risiedere esclusivamente all'interno dell'istanza Hold gestita dall'attore orchestratore cargoservice.
-                </li>
-            </ol>
-            Questa distinzione architetturale consente a cargorobot di istanziare una copia locale di sola lettura di Hold, interrogandola unicamente per ricavare le coordinate dei punti di interesse (getHomePosition(), getIOPortPosition(), getSlot5Position()), senza poter alterare indebitamente lo stato delle riserve della stiva.</p>
-            <h4>Interfaccia e Metodi di Hold</h4>
-        <p>
-            L'entità Hold incapsula la mappa della stiva esponendo metodi sincroni ad alto livello:
-        </p>
-            <table style="width: 100%; border-collapse: collapse; margin: 15px 0; border: 1.5px solid #a394ff;">
-    <thead>
-        <tr style="background-color: #d9d4ff; color: #000000; text-align: center;">
-            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 30%;">Metodo</th>
-            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 22%;">Chiamante</th>
-            <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 48%;">Scopo e Responsabilità</th>
-        </tr>
-    </thead>
-    <tbody>
-        <!-- Riga 1 -->
-        <tr style="background-color: #ffffff;">
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>reserveNextFreeSlot()</code> /<br>
-                <code>reserveFirstFree()</code>
-            </td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff;">
-                Ricerca sequenziale del primo slot con stato <code>FREE</code>. Se trovato, lo marca provvisoriamente come <code>RESERVED</code> e ne restituisce l'indice (1..4); se tutti sono impegnati o la stiva è piena, restituisce <code>-1</code>.
-            </td>
-        </tr>
-        <!-- Riga 2 -->
-        <tr style="background-color: #f7f9ff;">
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>releaseSlot(slotId)</code> /<br>
-                <code>releaseReserved()</code>
-            </td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff;">
-                Chiamato in caso di timeout dei 30s o a seguito di un fallimento del movimento (<code>transportFailed</code>): ripristina lo stato dello slot prenotato a <code>FREE</code>.
-            </td>
-        </tr>
-        <!-- Riga 3 -->
-        <tr style="background-color: #ffffff;">
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>setSlotOccupied(slotId)</code>
-            </td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff;">
-                Invocato alla ricezione di <code>transportDone</code>: commuta in modo definitivo lo stato dello slot da <code>RESERVED</code> a <code>OCCUPIED</code>.
-            </td>
-        </tr>
-        <!-- Riga 4 -->
-        <tr style="background-color: #f7f9ff;">
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>getSlotX(slotId)</code> /<br>
-                <code>getSlotY(slotId)</code>
-            </td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">
-                <code>cargoservice</code> /<br>
-                <code>cargorobot</code>
-            </td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff;">
-                Restituisce la coppia di coordinate cartesiane associate all'alloggiamento target, passate come argomenti nella richiesta <code>transportContainer</code>.
-            </td>
-        </tr>
-        <!-- Riga 5 -->
-        <tr style="background-color: #ffffff;">
-            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>getHoldStateString()</code> /<br>
-                <code>displayStatus()</code>
-            </td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
-            <td style="padding: 10px; border: 1.5px solid #a394ff;">
-                Serializza lo stato corrente dei 4 slot in una stringa compatta (es. <code>1:OCC,2:FREE,3:FREE,4:FREE</code>) per l'aggiornamento a display tramite l'IOPort.
-            </td>
-        </tr>
-    </tbody>
-</table>
-            <h4>Implementazione della Classe POJO Hold.java</h4>
+            <h3>Implementazione della Classe POJO Hold.java</h3>
+            <p>Si implementa l'interfaccia presentata nell'analisi del problema: </p>
             <pre>
 package utils.cargoservice;
 
