@@ -34,7 +34,7 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 		        var Slot     = 0
 		        var X        = 0      // coordinate dello slot finale 
 		        var Y        = 0
-		        var StepTime = 345
+		        var StepTime = 335
 		
 		        val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
 		
