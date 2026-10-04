@@ -14,7 +14,7 @@ dispatch( outOfService, outOfService(CAUSE) ).
 dispatch( containerSensed, containerSensed(VAL) ).
 dispatch( led, led(STATE) ).
 %====================================================================================
-context(ctxcargoservice, "localhost",  "TCP", "8050").
+context(ctxcargoservice, "localhost",  "TCP", "8120").
  qactor( ioport, ctxcargoservice, "it.unibo.ioport.Ioport").
  static(ioport).
   qactor( cargoservice, ctxcargoservice, "it.unibo.cargoservice.Cargoservice").

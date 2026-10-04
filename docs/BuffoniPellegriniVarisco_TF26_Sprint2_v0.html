@@ -278,16 +278,16 @@ containers and a slot named <b>slot5</b>.
                     Layout Fisso e Topologia Immutabile: Comprende le coordinate cartesiane (X, Y) delle posizioni operative fisse della stiva, definite in base alla griglia euclidea introdotta nello Sprint 0:
                     <ul>
                         <li>
-                            HOME (0, 0): punto di stazionamento iniziale e finale del robot;
+                            HOME: punto di stazionamento iniziale e finale del robot;
                         </li>
                         <li>
-                            IOPort (X_IN, Y_IN): area di carico e accesso antistante la porta;
+                            IOPort: area di carico e accesso antistante la porta;
                         </li>
                         <li>
-                            slot5 (X_S5, Y_S5): area per la sosta temporanea e la marcatura barcode;
+                            slot5: area per la sosta temporanea e la marcatura barcode;
                         </li>
                         <li>
-                            slot1..4 (X_i, Y_i): coordinate di deposito dei quattro alloggiamenti definitivi.
+                            slot1..4: coordinate di deposito dei quattro alloggiamenti definitivi.
                             Questi valori sono costanti di progetto e non cambiano mai nel corso dell'esecuzione. Possono quindi essere letti in totale sicurezza e concorrenza da più attori senza incorrere in condizioni di corsa (race condition).
                         </li>
                     </ul>
@@ -296,7 +296,8 @@ containers and a slot named <b>slot5</b>.
                     Stato Dinamico di Occupazione: Riguarda la mutabilità dello stato dei singoli alloggiamenti (FREE, RESERVED, OCCUPIED) e l'identificativo dell'eventuale slot riservato correntemente in attesa di deposito. Poiché questo stato è mutevole, deve risiedere esclusivamente all'interno dell'istanza Hold gestita dall'attore orchestratore cargoservice.
                 </li>
             </ol>
-            Questa distinzione architetturale consente a cargorobot di istanziare una copia locale di sola lettura di Hold, interrogandola unicamente per ricavare le coordinate dei punti di interesse (getHomePosition(), getIOPortPosition(), getSlot5Position()), senza poter alterare indebitamente lo stato delle riserve della stiva.</p>
+            Questa distinzione architetturale consente a cargorobot di istanziare una copia locale di sola lettura di Hold, interrogandola unicamente per ricavare le coordinate dei punti di interesse (<code>getHomeX()</code>/<code>getHomeY()</code>, <code>getIOPortX()</code>/<code>getIOPortY()</code>, <code>getMarkerX()</code>/<code>getMarkerY()</code>),
+            senza poter alterare indebitamente lo stato delle riserve della stiva.</p>
             <h4>Interfaccia di Hold</h4>
         <p>
             L'entità Hold incapsula la mappa della stiva esponendo metodi sincroni ad alto livello:
@@ -313,19 +314,17 @@ containers and a slot named <b>slot5</b>.
         <!-- Riga 1 -->
         <tr style="background-color: #ffffff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>reserveNextFreeSlot()</code> /<br>
-                <code>reserveFirstFree()</code>
+                <code>reserveNextFreeSlot()</code>
             </td>
             <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">
-                Ricerca sequenziale del primo slot con stato <code>FREE</code>. Se trovato, lo marca provvisoriamente come <code>RESERVED</code> e ne restituisce l'indice (1..4); se tutti sono impegnati o la stiva è piena, restituisce <code>-1</code>.
+                Ricerca sequenziale del primo slot con stato <code>FREE</code>. Se trovato, lo marca provvisoriamente come <code>RESERVED</code> e ne restituisce l'indice (1..4); se tutti sono impegnati o la stiva è piena, restituisce <code>NO_SLOT_AVAILABLE</code> (= -1).
             </td>
         </tr>
         <!-- Riga 2 -->
         <tr style="background-color: #f7f9ff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>releaseSlot(slotId)</code> /<br>
-                <code>releaseReserved()</code>
+                <code>releaseSlot(slotId)</code>
             </td>
             <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">
@@ -345,26 +344,34 @@ containers and a slot named <b>slot5</b>.
         <!-- Riga 4 -->
         <tr style="background-color: #f7f9ff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>getSlotX(slotId)</code> /<br>
-                <code>getSlotY(slotId)</code>
+                <code>getEntranceX(slotId)</code> /<br>
+                <code>getEntranceY(slotId)</code>
             </td>
             <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;">
-                <code>cargoservice</code> /<br>
-                <code>cargorobot</code>
+                <code>cargoservice</code>
             </td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">
-                Restituisce la coppia di coordinate cartesiane associate all'alloggiamento target, passate come argomenti nella richiesta <code>transportContainer</code>.
+                Restituisce la coppia di coordinate cartesiane associate all'ingresso dell'alloggiamento target, passate come argomenti nella richiesta <code>transportContainer</code>.
             </td>
         </tr>
         <!-- Riga 5 -->
         <tr style="background-color: #ffffff;">
             <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
-                <code>getHoldStateString()</code> /<br>
-                <code>displayStatus()</code>
+                <code>getHoldStateString()</code>
             </td>
             <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
             <td style="padding: 10px; border: 1.5px solid #a394ff;">
-                Serializza lo stato corrente dei 4 slot in una stringa compatta (es. <code>1:OCC,2:FREE,3:FREE,4:FREE</code>) per l'aggiornamento a display tramite l'IOPort.
+                Serializza lo stato corrente dei 4 slot in una stringa compatta (es. <code>[RESERVED, FREE, FREE, FREE]</code>) per l'aggiornamento a display tramite l'IOPort.
+            </td>
+        </tr>
+        <!-- Riga 6 -->
+        <tr style="background-color: #ffffff;">
+            <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd;">
+                <code>isFull()</code>
+            </td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff; text-align: center;"><code>cargoservice</code></td>
+            <td style="padding: 10px; border: 1.5px solid #a394ff;">
+                Controlla se la stiva è piena, ovvero se non c'è nessuno slot in stato <code>FREE</code>.
             </td>
         </tr>
     </tbody>
@@ -473,22 +480,34 @@ QActor cargorobot context ctxcargoservice {
     State idle{
     	println("$name | waiting for a container...") color cyan
     }
-    Transition t0 whenRequest transportContainer -> executeTransportSlot5
+    Transition t0 whenRequest transportContainer -> executeTransportIOPort
     
-    State executeTransportSlot5 {
-    	println("$name | deposit in slot5") color cyan
+    State executeTransportIOPort {
+    	println("$name | collecting container...") color cyan
     	onMsg (transportContainer : transportContainer(SLOT, TARGETX, TARGETY)){
     		[#
     			Slot = payloadArg(0)
     			X = payloadArg(1).toInt()
     			Y = payloadArg(2).toInt()
-    			var X5 = 5
-    			var Y5 = 5
+    			var XIOP = 4
+    			var YIOP = 0
     		#]
-    		request robotsmart_mock -m moverobot : moverobot ($X5, $Y5, $StepTime)
+    		request robotsmart_mock -m moverobot : moverobot ($XIOP, $YIOP, $StepTime)
     	}
     }
     Transition t1
+    	whenReply moverobotdone -> executeTransportSlot5
+    	whenReply moverobotfailed -> handleFinish
+    	
+    State executeTransportSlot5{
+    	[# 
+    		var X5 = 2
+    		var Y5 = 5	
+    	#]
+    	println ("$name | deposit in slot5...") color cyan
+    	request robotsmart_mock -m moverobot : moverobot ($X5, $Y5, $StepTime)
+    }
+    Transition t3
     	whenReply moverobotdone -> marking
     	whenReply moverobotfailed -> handleFinish
     	
@@ -563,7 +582,7 @@ QActor cargoservice_ridotto context ctxcargoservice{
     	println("$name | si è verificato un errore durante il trasporto. OUT OF SERVICE!") color magenta
     }
 }
-            </pre>
+</pre>
         </p>
     </div>
 
@@ -639,84 +658,199 @@ QActor cargoservice_ridotto context ctxcargoservice{
                 </li>
             </ol>
             <pre>
-QActor cargorobot context ctxcargoservice {
+// ---------------- Attore CARGOROBOT con recupero in caso di guasto -----------------------------------------------------------
+QActor cargorobot context ctxcargoservice 
+	withobj h using "cargoservice.Hold()"{
     [#
-        var TargetSlot = -1
-        var TargetX = -1
-        var TargetY = -1
-        val StepTime = 345
+        var Slot     = 0
+        var X        = 0      // coordinate dello slot finale 
+        var Y        = 0
+        var StepTime = 345
+
+        val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
+
+        var Failed       = false         // true se una tappa fallisce
+        var FailCause    = "fail_RobotSmart26"
+        var HomeAttempts = 0
+        var NearHome     = false         // true se manca solo l'ultimo passo per casa
     #]
-    withobj hold using "cargoservice.Hold()"
 
-    State idle initial {
-        println("$name | pronto in IDLE") color blue
-    }
-    Transition t0 whenRequest transportContainer -> moveToIOPort
-
-    State moveToIOPort {
-        onMsg(transportContainer : transportContainer(SLOT, TARGETX, TARGETY)) {
-            [#
-                TargetSlot = payloadArg(0).toInt()
-                TargetX    = payloadArg(1).toInt()
-                TargetY    = payloadArg(2).toInt()
-                val posIOPort = hold.getIOPortPosition()
-            #]
-            println("$name | Inizio trasporto per slot $TargetSlot verso IOPort") color blue
-            request robotsmart -m moverobot : moverobot($posIOPort.x, $posIOPort.y, $StepTime)
-        }
-    }
-    Transition t1 whenReply moverobotdone   -> atIOPort
-                  whenReply moverobotfailed -> handleMoveFailed
-
-    State atIOPort {
-        println("$name | Arrivato a IOPort, prelievo container") color blue
-    }
-    Transition t2 whenTime 1500 -> moveToSlot5
-
-    State moveToSlot5 {
-        [# val posS5 = hold.getSlot5Position() #]
-        println("$name | Trasferimento a Slot 5 per marcatura barcode") color blue
-        request robotsmart -m moverobot : moverobot($posS5.x, $posS5.y, $StepTime)
-    }
-    Transition t3 whenReply moverobotdone   -> atSlot5
-                  whenReply moverobotfailed -> handleMoveFailed
-
-    State atSlot5 {
-        println("$name | Arrivato a Slot 5: marcatura in corso...") color blue
-    }
-    Transition t4 whenTime 3000 -> moveToTargetSlot
-
-    State moveToTargetSlot {
-        println("$name | Marcatura ultimata. Verso lo slot riservato ($TargetX, $TargetY)") color blue
-        request robotsmart -m moverobot : moverobot($TargetX, $TargetY, $StepTime)
-    }
-    Transition t5 whenReply moverobotdone   -> atTargetSlot
-                  whenReply moverobotfailed -> handleMoveFailed
-
-    State atTargetSlot {
-        println("$name | Container depositato nello slot $TargetSlot") color blue
-    }
-    Transition t6 whenTime 1500 -> returnToHome
-
-    State returnToHome {
-        [# val posHome = hold.getHomePosition() #]
-        println("$name | Rientro verso HOME ($posHome.x, $posHome.y)") color blue
-        request robotsmart -m moverobot : moverobot($posHome.x, $posHome.y, $StepTime)
-    }
-    Transition t7 whenReply moverobotdone   -> transportCompleted
-                  whenReply moverobotfailed -> handleMoveFailed
-
-    State transportCompleted {
-        println("$name | Missione conclusa con successo in HOME") color blue
-        replyTo transportContainer with transportDone : transportDone($TargetSlot)
-        [# TargetSlot = -1 #]
+    State s0 initial {
+    	[#
+    		var XHOME = h.getHomeX()
+    		var YHOME = h.getHomeY()
+    	#]
+        println("$name | starting: mind set at HOME (robot assumed physically at HOME, facing down)") color blue
+        forward robotsmart -m setplanbuildelay : value(0)
+        forward robotsmart -m setrobotstate : setpos($XHOME,$YHOME,down)
+        delay 1000
     }
     Goto idle
 
-    State handleMoveFailed {
-        println("$name | ERRORE DI NAVIGAZIONE da RobotSmart26!") color red
-        replyTo transportContainer with transportFailed : transportFailed(robot_stuck)
-        [# TargetSlot = -1 #]
+    State idle {
+        println("$name | waiting for a container...") color blue
+    }
+    Transition t0
+        whenRequest transportContainer -> extractRequest
+
+    State extractRequest {
+        onMsg (transportContainer : transportContainer(SLOT, TARGETX, TARGETY)) {
+            [#
+                Slot         = payloadArg(0).toInt()
+                X            = payloadArg(1).toInt()
+                Y            = payloadArg(2).toInt()
+                Failed       = false
+                FailCause    = "fail_RobotSmart26"
+                HomeAttempts = 0
+            #]
+        }
+    }
+    Goto moveIOPort
+
+    // --- 1. HOME -> IOPort ---
+    State moveIOPort {
+    	[#
+    		var XIOP = h.getIOPortX()
+    		var YIOP = h.getIOPortY()
+    	#]
+        println("$name | moving to IOPort ($XIOP, $YIOP)") color blue
+        request robotsmart -m moverobot : moverobot($XIOP, $YIOP, $StepTime)
+    }
+    Transition t1
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> collectContainer
+        whenReply moverobotfailed -> legFailed
+
+    State collectContainer {
+        println("$name | collecting container...") color blue
+        delay 2000 
+    }
+    Goto moveSlot5
+
+    // --- 2. IOPort -> slot5 ---
+    State moveSlot5 {
+    	[#
+    		var X5 = h.getMarkerX()
+    		var Y5 = h.getMarkerY()
+    	#]
+        println("$name | moving to slot5 ($X5, $Y5)") color blue
+        request robotsmart -m moverobot : moverobot($X5, $Y5, $StepTime)
+    }
+    Transition t2
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> marking
+        whenReply moverobotfailed -> legFailed
+        
+    State marking {
+        println("$name | marker working...") color blue
+    }
+    Transition t3
+        whenTime 5000 -> moveFinalSlot
+
+    // --- 3. slot5 -> slot finale ---
+    State moveFinalSlot {
+        println("$name | moving to final slot ($X, $Y)") color blue
+        request robotsmart -m moverobot : moverobot($X, $Y, $StepTime)
+    }
+    Transition t4
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> depositContainer
+        whenReply moverobotfailed -> legFailed
+        
+    State depositContainer {
+        println("$name | depositing container...") color blue
+        delay 2000 
+    }
+    Goto startHoming
+        
+    // --- Gestione fallimento di una tappa ---
+    State legFailed {
+        onMsg (moverobotfailed : moverobotfailed(PLANDONE, PLANTODO)) {
+            println("$name | tappa fallita! PLANDONE=${payloadArg(0)} PLANTODO=${payloadArg(1)}") color red
+        }
+        [# Failed = true #]
+    }
+    Goto startHoming
+
+    State moveTimeout {
+        println("$name | nessuna risposta da robotsmart entro 30s") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    // --- 4. Rientro in HOME ---
+    State startHoming {
+        [# HomeAttempts = 0 #]
+    }
+    Goto goHome
+
+    State goHome {
+    	[#
+    		HomeAttempts++
+    		var XHOME = h.getHomeX()
+    		var YHOME = h.getHomeY()
+    	#]
+        println("$name | going back home (tentativo $HomeAttempts di $MaxHomeAttempts)") color blue
+        request robotsmart -m moverobot : moverobot($XHOME, $YHOME, $StepTime)
+    }
+    Transition t5
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> tuneHome
+        whenReply moverobotfailed -> homeMoveFailed
+        
+    State homeMoveFailed {
+        onMsg (moverobotfailed : moverobotfailed(PLANDONE, PLANTODO)) {
+            [#
+                val Todo = payloadArg(1).filter { c -> c.isLetter() }
+                NearHome = (Todo == "w" || Todo == "")
+            #]
+            println("$name | rientro in HOME fallito: PLANDONE=${payloadArg(0)} PLANTODO=${payloadArg(1)} -> quasi a casa: $NearHome") color red
+        }
+    }
+    Goto tuneHome if [# NearHome #] else retryHome
+
+    State retryHome {
+        println("$name | lontano da HOME, ritento il rientro") color magenta
+    }
+    Goto goHome if [# HomeAttempts < MaxHomeAttempts #] else homeGiveUp
+
+    State homeGiveUp {
+        println("$name | impossibile rientrare in HOME dopo $MaxHomeAttempts tentativi") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    // --- Allineamento in HOME ---
+    State tuneHome {
+        println("$name | tuning at home...") color blue
+        request robotsmart -m tuneAtHome : tuneAtHome(end)
+    }
+    Transition t6
+        whenTime 20000     -> tuneTimeout
+        whenReply tuneDone -> endHoming
+        
+    State tuneTimeout {
+        println("$name | tune NON terminato entro 20s") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    State endHoming {
+        println("$name | tune completato, robot riallineato in HOME") color blue
+        forward robotsmart -m setrobotstate : setpos(0,0,down)
+        delay 300
+    }
+    Goto finishKo if [# Failed #] else finishOk
+
+    State finishOk {
+        println("$name | trasporto finito con successo") color blue
+        replyTo transportContainer with transportDone : transportDone($Slot)
+    }
+    Goto idle
+
+    State finishKo {
+        println("$name | trasporto fallito ($FailCause)") color red
+        replyTo transportContainer with transportFailed : transportFailed($FailCause)
     }
     Goto idle
 }
@@ -729,43 +863,84 @@ QActor cargorobot context ctxcargoservice {
         <p>
             cargoservice delega il movimento a cargorobot dopo l'accettazione e il rilevamento del container:
             <pre>
-State handleContainer {
-    println("$name | Container rilevato nell'area sensore. Avvio carico.") color magenta
-    [#
-        val targetX = h.getSlotX(CurrentReservedSlot)
-        val targetY = h.getSlotY(CurrentReservedSlot)
-    #]
-    request cargorobot -m transportContainer : transportContainer($CurrentReservedSlot, $targetX, $targetY)
-}
-Transition tTrans whenReply transportDone   -> handleTransportSuccess
-                  whenReply transportFailed -> handleTransportFailure
-
-State handleTransportSuccess {
-    onMsg(transportDone : transportDone(SLOT)) {
+    // Stato modificato
+    State handleContainer {
+        println("$name | Container rilevato -> movimento robot") color magenta
         [#
-            val finishedSlot = payloadArg(0).toInt()
-            h.setSlotOccupied(finishedSlot)
+            Transporting = true
+            var TargetX = h.getEntranceX(CurrentReservedSlot)
+            var TargetY = h.getEntranceY(CurrentReservedSlot)
+        #]
+        request cargorobot -m transportContainer : transportContainer($CurrentReservedSlot, $TargetX, $TargetY)
+    }
+    Goto waitTransport
+
+    // Attesa della reply del robot
+    State waitTransport {
+        println("$name | In attesa della fine del trasporto...") color magenta
+    }
+    Transition t2
+        whenReply transportDone   -> endTransport
+        whenReply transportFailed -> handleOutOfService
+        whenRequest loadrequest   -> handleBusyRequest
+        whenMsg outOfService      -> handleOutOfService
+
+    State endTransport {
+        println("$name | Container portato nello slot definito") color magenta
+        [#
+            h.setSlotOccupied(CurrentReservedSlot)
             CurrentReservedSlot = -1
             var CurrentHoldState = h.getHoldStateString()
-            var StateStr = "'IDLE'"
-            var MsgStr = "'Carico completato con successo'"
+            var StateStr = "'LOADED'"
+            var LoadedMsgStr = "'Container preso in carico'"
         #]
-        println("$name | Carico completato nello slot $finishedSlot") color magenta
-        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $LoadedMsgStr)
+        delay 1500
     }
-}
-Goto idle
-
-State handleTransportFailure {
-    println("$name | Allarme: fallimento durante la movimentazione!") color red
-    [#
-        if (CurrentReservedSlot != -1) {
-            h.releaseSlot(CurrentReservedSlot)
-            CurrentReservedSlot = -1
-        }
-    #]
     Goto idle
-}
+
+    // --- Out of service: guasto sensore o guasto robot ---
+    State handleOutOfService {
+        println("$name | GUASTO RILEVATO: Sistema in Out Of Service") color magenta
+        onMsg(outOfService : outOfService(CAUSE)) {
+            [# OosMsg = "'Guasto sensore'" #]
+        }
+        onMsg(transportFailed : transportFailed(CAUSE)) {
+            [# OosMsg = "'Guasto robot'" #]
+        }
+        [#
+            IsOutOfService = true
+
+            // Lo slot viene rilasciato solo se il robot NON sta trasportando
+            // (altrimenti il container potrebbe essere gia' nel robot)
+            if (!Transporting && CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'OUT_OF_SERVICE'"
+            var LedRed = "'red'"
+        #]
+        forward ioport -m led : led($LedRed)
+        forward ioport -m updateWorkingState : updateWorkingState($StateStr)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $OosMsg)
+    }
+    Goto outOfServiceState
+
+    // Risposta retrylater mentre il sistema e' engaged oppure sta trasportando.
+    // Torna nello stato di attesa giusto in base al flag Transporting.
+    State handleBusyRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [#
+                var CurrentHoldState = h.getHoldStateString()
+                var SystemEngagedStr = "'system_engaged'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($SystemEngagedStr, $CurrentHoldState)
+            println("$name | retrylater($SystemEngagedStr, $CurrentHoldState)") color magenta
+        }
+    }
+    Goto waitTransport if [# Transporting #] else engagedWaitContainer
             </pre>
         </p>
     </div>
@@ -774,91 +949,139 @@ State handleTransportFailure {
             <h3>Implementazione della Classe POJO Hold.java</h3>
             <p>Si implementa l'interfaccia presentata nell'analisi del problema: </p>
             <pre>
-package utils.cargoservice;
+package cargoservice;
 
-import java.util.HashMap;
-import java.util.Map;
+import cargoservice.IHold.SlotState;
 
-public class Hold {
-    public static final int MAX_SLOTS = 4;
+public class Hold implements IHold{
 
-    // Struttura ausiliaria per coordinate cartesiane
-    public record Position(int x, int y) {}
-
-    // Stato di ciascun slot
-    public enum SlotStatus { FREE, RESERVED, OCCUPIED }
-
-    // Mappa topologica immutabile delle posizioni fisse sulla griglia
-    private final Position homePos = new Position(0, 0);
-    private final Position ioPortPos = new Position(0, 4);
-    private final Position slot5Pos = new Position(4, 2);
-
-    private final Map<Integer, Position> slotCoordinates = new HashMap<>();
-    private final Map<Integer, SlotStatus> slotStates = new HashMap<>();
+    private final SlotState[] mainSlots = new SlotState[NUM_MAIN_SLOTS];
+    /*
+     * INGRESSI SCELTI:
+     * - slot1 = (0,2)
+     * - slot2 = (0,3)
+     * - slot3 = (2,2)
+     * - slot4 = (2,3)
+     */
+    private final int[] slotEntranceX = {0,0,2,2};
+    private final int[] slotEntranceY = {2,3,2,3};
+    private final int[] homePos = {0,0};
+    private final int[] ioportPos = {4,0};
+    private final int[] markerPos = {2,5};
+    private static final int X = 0;
+    private static final int Y = 1;    
 
     public Hold() {
-        // Inizializzazione coordinate cartesiane dei 4 slot della stiva
-        slotCoordinates.put(1, new Position(1, 1));
-        slotCoordinates.put(2, new Position(3, 1));
-        slotCoordinates.put(3, new Position(1, 3));
-        slotCoordinates.put(4, new Position(3, 3));
-
-        // Inizializzazione degli stati a FREE
-        for (int i = 1; i <= MAX_SLOTS; i++) {
-            slotStates.put(i, SlotStatus.FREE);
+        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
+            mainSlots[i] = SlotState.FREE;
         }
     }
 
-    // --- Metodi di accesso alle posizioni fisse (Read-Only) ---
-    public Position getHomePosition() { return homePos; }
-    public Position getIOPortPosition() { return ioPortPos; }
-    public Position getSlot5Position() { return slot5Pos; }
-
-    public int getSlotX(int slotId) {
-        Position pos = slotCoordinates.get(slotId);
-        return pos != null ? pos.x() : -1;
-    }
-
-    public int getSlotY(int slotId) {
-        Position pos = slotCoordinates.get(slotId);
-        return pos != null ? pos.y() : -1;
-    }
-
-    // --- Metodi di manipolazione di stato (usati da cargoservice) ---
-    public synchronized boolean isFull() {
-        return slotStates.values().stream().noneMatch(s -> s == SlotStatus.FREE);
-    }
-
-    public synchronized int reserveFirstFree() {
-        for (int i = 1; i <= MAX_SLOTS; i++) {
-            if (slotStates.get(i) == SlotStatus.FREE) {
-                slotStates.put(i, SlotStatus.RESERVED);
-                return i;
+    @Override
+    public synchronized int reserveNextFreeSlot() {
+        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
+            if (mainSlots[i] == SlotState.FREE) {
+                mainSlots[i] = SlotState.RESERVED;
+                return i + 1;
             }
         }
-        return -1; // Stiva piena
+        return NO_SLOT_AVAILABLE;
     }
 
-    public synchronized void releaseSlot(int slotId) {
-        if (slotStates.containsKey(slotId) && slotStates.get(slotId) == SlotStatus.RESERVED) {
-            slotStates.put(slotId, SlotStatus.FREE);
+    @Override
+    public synchronized void setSlotOccupied(int slotNumber) {
+        if (isValidSlot(slotNumber)) {
+            mainSlots[slotNumber - 1] = SlotState.OCCUPIED;
         }
     }
 
-    public synchronized void setSlotOccupied(int slotId) {
-        if (slotStates.containsKey(slotId)) {
-            slotStates.put(slotId, SlotStatus.OCCUPIED);
+    @Override
+    public synchronized void releaseSlot(int slotNumber) {
+        if (isValidSlot(slotNumber)) {
+            mainSlots[slotNumber - 1] = SlotState.FREE;
         }
     }
 
-    public synchronized String displayStatus() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= MAX_SLOTS; i++) {
-            if (i > 1) sb.append(",");
-            sb.append(i).append(":").append(slotStates.get(i));
+    @Override
+    public synchronized boolean isFull() {
+        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
+            if (mainSlots[i] == SlotState.FREE) {
+                return false;
+            }
         }
-        return sb.toString();
+        return true;
     }
+
+    private boolean isValidSlot(int slotNumber) {
+        return slotNumber >= 1 && slotNumber <= NUM_MAIN_SLOTS;
+    }
+    
+    @Override
+    public synchronized int getEntranceX(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return slotEntranceX[slotNumber-1];
+        }
+        return -1;
+    }
+    
+    @Override
+    public synchronized int getEntranceY(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return slotEntranceY[slotNumber-1];
+        }
+        return -1;
+    }
+    
+    @Override
+    public synchronized String getHoldStateString() {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
+            sb.append(mainSlots[i]);
+            if (i < NUM_MAIN_SLOTS - 1) {
+                sb.append(", ");
+            }
+        }
+        sb.append("]");
+        return sb.toString(); // Restituisce es: "[RESERVED, FREE, FREE, FREE]"
+    }
+    
+    @Override
+    public SlotState getSlotState(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return mainSlots[slotNumber-1];
+        }
+        return null;
+    }
+
+	@Override
+	public synchronized int getHomeX() {
+		return homePos[X];
+	}
+
+	@Override
+	public synchronized int getHomeY() {
+		return homePos[Y];
+	}
+
+	@Override
+	public synchronized int getIOPortX() {
+		return ioportPos[X];
+	}
+
+	@Override
+	public synchronized int getIOPortY() {
+		return ioportPos[Y];
+	}
+
+	@Override
+	public synchronized int getMarkerX() {
+		return markerPos[X];
+	}
+
+	@Override
+	public synchronized int getMarkerY() {
+		return markerPos[Y];
+	}
 }
             </pre>
         

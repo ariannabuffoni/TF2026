@@ -7,9 +7,13 @@ Reply   reject              : reject(HOLD_STATE) for loadrequest
 Reply   engaged             : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
 
 Dispatch updateHoldDisplay  : updateHoldDisplay(STATE, HOLD_STATE, MSG)
-Dispatch updateWorkingState: updateWorkingState(STATE)
-Dispatch button_pushed     : button_pushed(X)
-Dispatch containerSensed   : containerSensed(X)
+Dispatch updateWorkingState : updateWorkingState(STATE)
+Dispatch button_pushed      : button_pushed(X)
+
+// Mock & Controllo Hardware
+Dispatch containerSensed    : containerSensed(VAL)
+Dispatch outOfService       : outOfService(CAUSE)
+Dispatch led                : led(STATE)
 
 // --- Comunicazione CargoService <-> CargoRobot ---
 Request  transportContainer : transportContainer(SLOT, TARGETX, TARGETY)
@@ -21,6 +25,15 @@ Request  moverobot          : moverobot(TARGETX, TARGETY, STEPTIME)
 Reply    moverobotdone      : moverobotok(ARG) for moverobot
 Reply    moverobotfailed    : moverobotfailed(PLANDONE, PLANTODO) for moverobot
 
+Request  tuneAtHome         : tuneAtHome(X)   "reposition in home X don't care"
+Reply    tuneDone           : tuneDone(X) for tuneAtHome
+
+Dispatch setrobotstate      : setpos(X,Y,D)   "set robot position to (X,Y) direction D=up|down|left|right"
+Dispatch setplanbuildelay   : value(V)        "parameter = V >= 0"
+
+Request getrobotstate : getrobotstate(ARG)
+Reply   robotstate    : robotstate(POS,DIR) for getrobotstate
+
 // --- Contesti di Esecuzione ---
 Context ctxcargoservice ip [host="localhost" port=8120]
 Context ctxrobotsmart   ip [host="127.0.0.1" port=8020]
@@ -28,89 +41,410 @@ Context ctxrobotsmart   ip [host="127.0.0.1" port=8020]
 ExternalQActor robotsmart context ctxrobotsmart
 
 
-// ---------------- Attore CARGOROBOT -----------------------------------------------------------
-QActor cargorobot context ctxcargoservice
-	withobj hold using "cargoservice.Hold()" {
+// ---------------- Attore CARGOROBOT con recupero in caso di guasto -----------------------------------------------------------
+QActor cargorobot context ctxcargoservice 
+	withobj h using "cargoservice.Hold()"{
     [#
-        var TargetSlot = -1
-        var TargetX = -1
-        var TargetY = -1
-        val StepTime = 345
+        var Slot     = 0
+        var X        = 0      // coordinate dello slot finale 
+        var Y        = 0
+        var StepTime = 345
+
+        val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
+
+        var Failed       = false         // true se una tappa fallisce
+        var FailCause    = "fail_RobotSmart26"
+        var HomeAttempts = 0
+        var NearHome     = false         // true se manca solo l'ultimo passo per casa
     #]
-    
 
-    State idle initial {
-        println("$name | pronto in IDLE") color blue
-    }
-    Transition t0 whenRequest transportContainer -> moveToIOPort
-
-    State moveToIOPort {
-        onMsg(transportContainer : transportContainer(SLOT, TARGETX, TARGETY)) {
-            [#
-                TargetSlot = payloadArg(0).toInt()
-                TargetX    = payloadArg(1).toInt()
-                TargetY    = payloadArg(2).toInt()
-                val posIOPort = hold.getIOPortPosition()
-            #]
-            println("$name | Inizio trasporto per slot $TargetSlot verso IOPort") color blue
-            request robotsmart -m moverobot : moverobot($posIOPort.x, $posIOPort.y, $StepTime)
-        }
-    }
-    Transition t1 whenReply moverobotdone   -> atIOPort
-                  whenReply moverobotfailed -> handleMoveFailed
-
-    State atIOPort {
-        println("$name | Arrivato a IOPort, prelievo container") color blue
-    }
-    Transition t2 whenTime 1500 -> moveToSlot5
-
-    State moveToSlot5 {
-        [# val posS5 = hold.getSlot5Position() #]
-        println("$name | Trasferimento a Slot 5 per marcatura barcode") color blue
-        request robotsmart -m moverobot : moverobot($posS5.x, $posS5.y, $StepTime)
-    }
-    Transition t3 whenReply moverobotdone   -> atSlot5
-                  whenReply moverobotfailed -> handleMoveFailed
-
-    State atSlot5 {
-        println("$name | Arrivato a Slot 5: marcatura in corso...") color blue
-    }
-    Transition t4 whenTime 3000 -> moveToTargetSlot
-
-    State moveToTargetSlot {
-        println("$name | Marcatura ultimata. Verso lo slot riservato ($TargetX, $TargetY)") color blue
-        request robotsmart -m moverobot : moverobot($TargetX, $TargetY, $StepTime)
-    }
-    Transition t5 whenReply moverobotdone   -> atTargetSlot
-                  whenReply moverobotfailed -> handleMoveFailed
-
-    State atTargetSlot {
-        println("$name | Container depositato nello slot $TargetSlot") color blue
-    }
-    Transition t6 whenTime 1500 -> returnToHome
-
-    State returnToHome {
-        [# val posHome = hold.getHomePosition() #]
-        println("$name | Rientro verso HOME ($posHome.x, $posHome.y)") color blue
-        request robotsmart -m moverobot : moverobot($posHome.x, $posHome.y, $StepTime)
-    }
-    Transition t7 whenReply moverobotdone   -> transportCompleted
-                  whenReply moverobotfailed -> handleMoveFailed
-
-    State transportCompleted {
-        println("$name | Missione conclusa con successo in HOME") color blue
-        replyTo transportContainer with transportDone : transportDone($TargetSlot)
-        [# TargetSlot = -1 #]
+    State s0 initial {
+    	[#
+    		var XHOME = h.getHomeX()
+    		var YHOME = h.getHomeY()
+    	#]
+        println("$name | starting: mind set at HOME (robot assumed physically at HOME, facing down)") color blue
+        forward robotsmart -m setplanbuildelay : value(0)
+        forward robotsmart -m setrobotstate : setpos($XHOME,$YHOME,down)
+        delay 1000
     }
     Goto idle
 
-    State handleMoveFailed {
-        println("$name | ERRORE DI NAVIGAZIONE da RobotSmart26!") color red
-        replyTo transportContainer with transportFailed : transportFailed(robot_stuck)
-        [# TargetSlot = -1 #]
+    State idle {
+        println("$name | waiting for a container...") color blue
+    }
+    Transition t0
+        whenRequest transportContainer -> extractRequest
+
+    State extractRequest {
+        onMsg (transportContainer : transportContainer(SLOT, TARGETX, TARGETY)) {
+            [#
+                Slot         = payloadArg(0).toInt()
+                X            = payloadArg(1).toInt()
+                Y            = payloadArg(2).toInt()
+                Failed       = false
+                FailCause    = "fail_RobotSmart26"
+                HomeAttempts = 0
+            #]
+        }
+    }
+    Goto moveIOPort
+
+    // --- 1. HOME -> IOPort ---
+    State moveIOPort {
+    	[#
+    		var XIOP = h.getIOPortX()
+    		var YIOP = h.getIOPortY()
+    	#]
+        println("$name | moving to IOPort ($XIOP, $YIOP)") color blue
+        request robotsmart -m moverobot : moverobot($XIOP, $YIOP, $StepTime)
+    }
+    Transition t1
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> collectContainer
+        whenReply moverobotfailed -> legFailed
+
+    State collectContainer {
+        println("$name | collecting container...") color blue
+        delay 2000 
+    }
+    Goto moveSlot5
+
+    // --- 2. IOPort -> slot5 ---
+    State moveSlot5 {
+    	[#
+    		var X5 = h.getMarkerX()
+    		var Y5 = h.getMarkerY()
+    	#]
+        println("$name | moving to slot5 ($X5, $Y5)") color blue
+        request robotsmart -m moverobot : moverobot($X5, $Y5, $StepTime)
+    }
+    Transition t2
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> marking
+        whenReply moverobotfailed -> legFailed
+        
+    State marking {
+        println("$name | marker working...") color blue
+    }
+    Transition t3
+        whenTime 5000 -> moveFinalSlot
+
+    // --- 3. slot5 -> slot finale ---
+    State moveFinalSlot {
+        println("$name | moving to final slot ($X, $Y)") color blue
+        request robotsmart -m moverobot : moverobot($X, $Y, $StepTime)
+    }
+    Transition t4
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> depositContainer
+        whenReply moverobotfailed -> legFailed
+        
+    State depositContainer {
+        println("$name | depositing container...") color blue
+        delay 2000 
+    }
+    Goto startHoming
+        
+    // --- Gestione fallimento di una tappa ---
+    State legFailed {
+        onMsg (moverobotfailed : moverobotfailed(PLANDONE, PLANTODO)) {
+            println("$name | tappa fallita! PLANDONE=${payloadArg(0)} PLANTODO=${payloadArg(1)}") color red
+        }
+        [# Failed = true #]
+    }
+    Goto startHoming
+
+    State moveTimeout {
+        println("$name | nessuna risposta da robotsmart entro 30s") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    // --- 4. Rientro in HOME ---
+    State startHoming {
+        [# HomeAttempts = 0 #]
+    }
+    Goto goHome
+
+    State goHome {
+    	[#
+    		HomeAttempts++
+    		var XHOME = h.getHomeX()
+    		var YHOME = h.getHomeY()
+    	#]
+        println("$name | going back home (tentativo $HomeAttempts di $MaxHomeAttempts)") color blue
+        request robotsmart -m moverobot : moverobot($XHOME, $YHOME, $StepTime)
+    }
+    Transition t5
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> tuneHome
+        whenReply moverobotfailed -> homeMoveFailed
+        
+    State homeMoveFailed {
+        onMsg (moverobotfailed : moverobotfailed(PLANDONE, PLANTODO)) {
+            [#
+                val Todo = payloadArg(1).filter { c -> c.isLetter() }
+                NearHome = (Todo == "w" || Todo == "")
+            #]
+            println("$name | rientro in HOME fallito: PLANDONE=${payloadArg(0)} PLANTODO=${payloadArg(1)} -> quasi a casa: $NearHome") color red
+        }
+    }
+    Goto tuneHome if [# NearHome #] else retryHome
+
+    State retryHome {
+        println("$name | lontano da HOME, ritento il rientro") color magenta
+    }
+    Goto goHome if [# HomeAttempts < MaxHomeAttempts #] else homeGiveUp
+
+    State homeGiveUp {
+        println("$name | impossibile rientrare in HOME dopo $MaxHomeAttempts tentativi") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    // --- Allineamento in HOME ---
+    State tuneHome {
+        println("$name | tuning at home...") color blue
+        request robotsmart -m tuneAtHome : tuneAtHome(end)
+    }
+    Transition t6
+        whenTime 20000     -> tuneTimeout
+        whenReply tuneDone -> endHoming
+        
+    State tuneTimeout {
+        println("$name | tune NON terminato entro 20s") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    State endHoming {
+        println("$name | tune completato, robot riallineato in HOME") color blue
+        forward robotsmart -m setrobotstate : setpos(0,0,down)
+        delay 300
+    }
+    Goto finishKo if [# Failed #] else finishOk
+
+    State finishOk {
+        println("$name | trasporto finito con successo") color blue
+        replyTo transportContainer with transportDone : transportDone($Slot)
+    }
+    Goto idle
+
+    State finishKo {
+        println("$name | trasporto fallito ($FailCause)") color red
+        replyTo transportContainer with transportFailed : transportFailed($FailCause)
     }
     Goto idle
 }
+
+// ---------------- Attore CARGOSERVICE -----------------------------------------------------------
+QActor cargoservice context ctxcargoservice
+    withobj h using "cargoservice.Hold()" {
+    [#
+        var CurrentReservedSlot = -1
+        var CurrentState        = "IDLE"
+        var IsOutOfService      = false
+        var Transporting        = false     // true mentre cargorobot sta trasportando
+        var OosMsg              = "'Guasto'"
+        var WaitStartTime       = 0L
+        var RemainingTime       = 30000L
+    #]
+
+    State s0 initial {
+    	delay 1000
+        println("$name | avvio CargoService Core") color magenta
+        [# var ServiceWorking = "'WORKING'" #]
+        forward ioport -m updateWorkingState : updateWorkingState($ServiceWorking)
+    }
+    Goto idle
+
+    State idle {
+        [#
+            CurrentState    = "IDLE"
+            Transporting    = false
+            var LedOff      = "'off'"
+            WaitStartTime   = 0L
+            RemainingTime   = 30000L
+        #]
+        println("$name | Sistema in stato IDLE") color magenta
+        forward ioport -m led : led($LedOff)
+    }
+    Transition t0
+        whenRequest loadrequest -> handleLoadRequest
+        whenMsg outOfService    -> handleOutOfService
+
+    State handleLoadRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [#
+                var IoportState = payloadArg(0).toBoolean()
+                var CurrentHoldState = h.getHoldStateString()
+
+                if (IoportState) {
+                    var SystemBusyStr = "'ioport_occupied'"
+                    #]
+                    replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
+                    println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta
+                    [#
+                } else if (h.isFull()) {
+                    #]
+                    replyTo loadrequest with reject : reject($CurrentHoldState)
+                    println("$name | reject($CurrentHoldState)") color magenta
+                    [#
+                } else {
+                    CurrentReservedSlot = h.reserveNextFreeSlot()
+                    if (CurrentReservedSlot != -1) {
+                        CurrentState = "ENGAGED"
+                        CurrentHoldState = h.getHoldStateString()
+                        var LedBlinking = "'blinking'"
+                        #]
+                        replyTo loadrequest with engaged : engaged($CurrentReservedSlot, $CurrentHoldState)
+                        println("$name | engaged($CurrentReservedSlot, $CurrentHoldState)") color magenta
+                        forward ioport -m led : led($LedBlinking)
+                        [#
+                    } else {
+                        var SystemBusyStr = "'system_busy'"
+                        #]
+                        replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
+                        println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta
+                        [#
+                    }
+                }
+            #]
+        }
+    }
+    Goto engagedWaitContainer if [# CurrentState == "ENGAGED" #] else idle
+
+    // --- Attesa del container nell'area del sensore (max 30s) ---
+    State engagedWaitContainer {
+        [#
+            if (WaitStartTime == 0L) {
+                WaitStartTime = System.currentTimeMillis()
+            }
+            var Elapsed = System.currentTimeMillis() - WaitStartTime
+            RemainingTime = 30000L - Elapsed
+            if (RemainingTime <= 0L) RemainingTime = 1L
+        #]
+        println("$name | In attesa del container (Tempo residuo: ${RemainingTime}ms)...") color magenta
+    }
+    Transition t1
+        whenTimeVar RemainingTime -> handleTimeout
+        whenRequest loadrequest   -> handleBusyRequest
+        whenMsg containerSensed   -> handleContainer
+        whenMsg outOfService      -> handleOutOfService
+
+    // Risposta retrylater mentre il sistema e' engaged oppure sta trasportando.
+    // Torna nello stato di attesa giusto in base al flag Transporting.
+    State handleBusyRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [#
+                var CurrentHoldState = h.getHoldStateString()
+                var SystemEngagedStr = "'system_engaged'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($SystemEngagedStr, $CurrentHoldState)
+            println("$name | retrylater($SystemEngagedStr, $CurrentHoldState)") color magenta
+        }
+    }
+    Goto waitTransport if [# Transporting #] else engagedWaitContainer
+
+    State handleTimeout {
+        println("$name | TIMEOUT scaduto! Container non rilevato entro 30s.") color magenta
+        [#
+            if (CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'DISENGAGED'"
+            var TimeoutMsgStr = "'Timer scaduto (30s)'"
+        #]
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $TimeoutMsgStr)
+    }
+    Goto idle
+
+    // --- Container rilevato: parte il trasporto ---
+    State handleContainer {
+        println("$name | Container rilevato -> movimento robot") color magenta
+        [#
+            Transporting = true
+            var TargetX = h.getEntranceX(CurrentReservedSlot)
+            var TargetY = h.getEntranceY(CurrentReservedSlot)
+        #]
+        request cargorobot -m transportContainer : transportContainer($CurrentReservedSlot, $TargetX, $TargetY)
+    }
+    Goto waitTransport
+
+    // Attesa della reply del robot
+    State waitTransport {
+        println("$name | In attesa della fine del trasporto...") color magenta
+    }
+    Transition t2
+        whenReply transportDone   -> endTransport
+        whenReply transportFailed -> handleOutOfService
+        whenRequest loadrequest   -> handleBusyRequest
+        whenMsg outOfService      -> handleOutOfService
+
+    State endTransport {
+        println("$name | Container portato nello slot definito") color magenta
+        [#
+            h.setSlotOccupied(CurrentReservedSlot)
+            CurrentReservedSlot = -1
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'LOADED'"
+            var LoadedMsgStr = "'Container preso in carico'"
+        #]
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $LoadedMsgStr)
+        delay 1500
+    }
+    Goto idle
+
+    // --- Out of service: guasto sensore o guasto robot ---
+    State handleOutOfService {
+        println("$name | GUASTO RILEVATO: Sistema in Out Of Service") color magenta
+        onMsg(outOfService : outOfService(CAUSE)) {
+            [# OosMsg = "'Guasto sensore'" #]
+        }
+        onMsg(transportFailed : transportFailed(CAUSE)) {
+            [# OosMsg = "'Guasto robot'" #]
+        }
+        [#
+            IsOutOfService = true
+
+            // Lo slot viene rilasciato solo se il robot NON sta trasportando
+            // (altrimenti il container potrebbe essere gia' nel robot)
+            if (!Transporting && CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'OUT_OF_SERVICE'"
+            var LedRed = "'red'"
+        #]
+        forward ioport -m led : led($LedRed)
+        forward ioport -m updateWorkingState : updateWorkingState($StateStr)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $OosMsg)
+    }
+    Goto outOfServiceState
+
+    State outOfServiceState {
+        println("$name | Sistema BLOCCATO: Out Of Service") color magenta
+    }
+    Transition t3
+        whenRequest loadrequest -> handleRejectOutOfService
+
+    State handleRejectOutOfService {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [#
+                var CurrentHoldState = h.getHoldStateString()
+                var CauseStr = "'out_of_service'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($CauseStr, $CurrentHoldState)
+        }
+    }
+    Goto outOfServiceState
+}
+
 
 // ---------------- Attore IOPORT -----------------------------------------------------------
 QActor ioport context ctxcargoservice {
@@ -235,217 +569,4 @@ QActor ioport context ctxcargoservice {
         forward cargoservice -m outOfService : outOfService(sensor_fault)
     }
     Goto acceptEvents
-}
-
-// ---------------- Attore CARGOSERVICE -----------------------------------------------------------
-QActor cargoservice context ctxcargoservice 
-    withobj h using "cargoservice.Hold()" {
-    [# 
-        var CurrentReservedSlot = -1
-        var CurrentState = "IDLE"
-        var IsOutOfService = false
-        var WaitStartTime = 0L
-        var RemainingTime = 30000L
-    #]
-
-    State s0 initial {
-        println("$name | avvio CargoService Core") color magenta
-        [# var ServiceWorking = "'WORKING'" #]
-        forward ioport -m updateWorkingState : updateWorkingState($ServiceWorking)
-    }
-    Goto idle
-
-    State idle {
-        [# 
-            CurrentState = "IDLE" 
-            var LedOff = "'off'"
-            WaitStartTime = 0L
-            RemainingTime = 30000L
-        #]
-        println("$name | Sistema in stato IDLE") color magenta
-        forward ioport -m led : led($LedOff)
-    }
-    Transition t0 
-        whenRequest loadrequest -> handleLoadRequest
-        whenMsg outOfService -> handleOutOfService
-
-    State handleLoadRequest {
-        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
-            [# 
-                var IoportState = payloadArg(0).toBoolean()
-                var CurrentHoldState = h.getHoldStateString()
-                
-                if (IoportState) {
-                    var SystemBusyStr = "'ioport_occupied'" 
-                    #] 
-                    replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
-                    println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta 
-                    [#
-                } else if (h.isFull()) {
-                    #] 
-                    replyTo loadrequest with reject : reject($CurrentHoldState) 
-                    println("$name | reject($CurrentHoldState)") color magenta
-                    [#
-                } else {
-                    CurrentReservedSlot = h.reserveNextFreeSlot()
-                    if (CurrentReservedSlot != -1) {
-                        CurrentState = "ENGAGED"
-                        CurrentHoldState = h.getHoldStateString()
-                        var LedBlinking = "'blinking'"
-                        #] 
-                        replyTo loadrequest with engaged : engaged($CurrentReservedSlot, $CurrentHoldState)
-                        println("$name | engaged($CurrentReservedSlot, $CurrentHoldState)") color magenta
-                        forward ioport -m led : led($LedBlinking)
-                        [#
-                    } else {
-                        var SystemBusyStr = "'system_busy'"
-                        #] 
-                        replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
-                        println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta 
-                        [#
-                    }
-                }
-            #]
-        }
-    }
-    Goto engagedWaitContainer if [# CurrentState == "ENGAGED" #] else idle
-
-   State engagedWaitContainer {
-        [# 
-            if (WaitStartTime == 0L) {
-                WaitStartTime = System.currentTimeMillis()
-            }
-            var Elapsed = System.currentTimeMillis() - WaitStartTime
-            RemainingTime = 30000L - Elapsed
-            if (RemainingTime <= 0L) RemainingTime = 1L
-        #]
-        println("$name | In attesa del container (Tempo residuo: ${RemainingTime}ms)...") color magenta
-    }
-    Transition t1 
-        whenTimeVar RemainingTime  -> handleTimeout 
-        whenRequest loadrequest    -> handleBusyRequest
-        whenMsg containerSensed    -> handleContainer
-        whenMsg outOfService       -> handleEngagedOutOfService
-
-    State handleBusyRequest {
-        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
-            [# 
-                var CurrentHoldState = h.getHoldStateString()
-                var SystemEngagedStr = "'system_engaged'"
-            #]
-            replyTo loadrequest with retrylater : retrylater($SystemEngagedStr, $CurrentHoldState)
-            println("$name | retrylater($SystemEngagedStr, $CurrentHoldState)") color magenta 
-        }
-    }
-    Goto engagedWaitContainer
-    
-    State handleEngagedOutOfService {
-        println("$name | GUASTO RILEVATO DURANTE ENGAGED!") color magenta
-        [# 
-            IsOutOfService = true
-            
-            // Release dello slot che era stato prenotato
-            if (CurrentReservedSlot != -1) {
-                h.releaseSlot(CurrentReservedSlot)
-                CurrentReservedSlot = -1
-            }
-            
-            var CurrentHoldState = h.getHoldStateString()
-            var StateStr = "'OUT_OF_SERVICE'"
-            var MsgStr = "'Guasto sensore durante attesa'"
-            var LedRed = "'red'"
-            var ServiceDown = "'OUT_OF_SERVICE'"
-        #]
-        forward ioport -m led : led($LedRed)
-        forward ioport -m updateWorkingState : updateWorkingState($ServiceDown)
-        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
-    }
-    Goto outOfServiceState
-
-    State handleTimeout {
-        println("$name | TIMEOUT scaduto! Container non rilevato entro 30s.") color magenta
-        [# 
-            if (CurrentReservedSlot != -1) {
-                h.releaseSlot(CurrentReservedSlot)
-                CurrentReservedSlot = -1
-            }
-            var CurrentHoldState = h.getHoldStateString()
-            var StateStr = "'DISENGAGED'"
-            var TimeoutMsgStr = "'Timer scaduto (30s)'"
-        #]
-        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $TimeoutMsgStr)
-    }
-    Goto idle
-    
-    State handleContainer {
-    	println("$name | Container rilevato nell'area sensore. Avvio carico.") color magenta
-    	[#
-        	val targetX = h.getSlotX(CurrentReservedSlot)
-        	val targetY = h.getSlotY(CurrentReservedSlot)
-    	#]
-    	request cargorobot -m transportContainer : transportContainer($CurrentReservedSlot, $targetX, $targetY)
-	}
-	Transition tTrans 
-		whenReply transportDone   -> handleTransportSuccess
-        whenReply transportFailed -> handleTransportFailure
-
-	State handleTransportSuccess {
-    	onMsg(transportDone : transportDone(SLOT)) {
-        	[#
-            	val finishedSlot = payloadArg(0).toInt()
-            	h.setSlotOccupied(finishedSlot)
-            	CurrentReservedSlot = -1
-            	var CurrentHoldState = h.getHoldStateString()
-            	var StateStr = "'IDLE'"
-            	var MsgStr = "'Carico completato con successo'"
-        	#]
-	        println("$name | Carico completato nello slot $finishedSlot") color magenta
-        	forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
-    	}
-	}
-	Goto idle
-
-	State handleTransportFailure {
-	    println("$name | Allarme: fallimento durante la movimentazione!") color red
-	    [#
-        	if (CurrentReservedSlot != -1) {
-	            h.releaseSlot(CurrentReservedSlot)
-            	CurrentReservedSlot = -1
-        	}
-    	#]
-	}
-	Goto idle
-    
-    State handleOutOfService {
-        println("$name | ERRORE SENSORE: Ingresso in Out Of Service") color magenta
-        [# 
-            IsOutOfService = true
-            var CurrentHoldState = h.getHoldStateString()
-            var StateStr = "'OUT_OF_SERVICE'"
-            var MsgStr = "'Guasto sensore'"
-            var LedRed = "'red'"
-            var ServiceDown = "'OUT_OF_SERVICE'"
-        #]
-        forward ioport -m led : led($LedRed)
-        forward ioport -m updateWorkingState : updateWorkingState($ServiceDown)
-        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $MsgStr)
-    }
-    Goto outOfServiceState
-
-    State outOfServiceState {
-        println("$name | Sistema BLOCCO: Out Of Service") color magenta
-    }
-    Transition t2
-        whenRequest loadrequest -> handleRejectOutOfService
-
-    State handleRejectOutOfService {
-        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
-            [# 
-                var CurrentHoldState = h.getHoldStateString()
-                var CauseStr = "'out_of_service'"
-            #]
-            replyTo loadrequest with retrylater : retrylater($CauseStr, $CurrentHoldState)
-        }
-    }
-    Goto outOfServiceState
 }

@@ -1,86 +1,134 @@
 package cargoservice;
 
-import java.util.HashMap;
-import java.util.Map;
+import cargoservice.IHold.SlotState;
 
-public class Hold {
-    public static final int MAX_SLOTS = 4;
+public class Hold implements IHold{
 
-    // Struttura ausiliaria per coordinate cartesiane
-    public record Position(int x, int y) {}
-
-    // Stato di ciascun slot
-    public enum SlotStatus { FREE, RESERVED, OCCUPIED }
-
-    // Mappa topologica immutabile delle posizioni fisse sulla griglia
-    private final Position homePos = new Position(0, 0);
-    private final Position ioPortPos = new Position(0, 4);
-    private final Position slot5Pos = new Position(4, 2);
-
-    private final Map slotCoordinates = new HashMap<>();
-    private final Map slotStates = new HashMap<>();
+    private final SlotState[] mainSlots = new SlotState[NUM_MAIN_SLOTS];
+    /*
+     * INGRESSI SCELTI:
+     * - slot1 = (0,2)
+     * - slot2 = (0,3)
+     * - slot3 = (2,2)
+     * - slot4 = (2,3)
+     */
+    private final int[] slotEntranceX = {0,0,2,2};
+    private final int[] slotEntranceY = {2,3,2,3};
+    private final int[] homePos = {0,0};
+    private final int[] ioportPos = {4,0};
+    private final int[] markerPos = {2,5};
+    private static final int X = 0;
+    private static final int Y = 1;    
 
     public Hold() {
-        // Inizializzazione coordinate cartesiane dei 4 slot della stiva
-        slotCoordinates.put(1, new Position(1, 1));
-        slotCoordinates.put(2, new Position(3, 1));
-        slotCoordinates.put(3, new Position(1, 3));
-        slotCoordinates.put(4, new Position(3, 3));
-
-        // Inizializzazione degli stati a FREE
-        for (int i = 1; i <= MAX_SLOTS; i++) {
-            slotStates.put(i, SlotStatus.FREE);
+        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
+            mainSlots[i] = SlotState.FREE;
         }
     }
 
-    // --- Metodi di accesso alle posizioni fisse (Read-Only) ---
-    public Position getHomePosition() { return homePos; }
-    public Position getIOPortPosition() { return ioPortPos; }
-    public Position getSlot5Position() { return slot5Pos; }
-
-    public int getSlotX(int slotId) {
-        Position pos = slotCoordinates.get(slotId);
-        return pos != null ? pos.x() : -1;
-    }
-
-    public int getSlotY(int slotId) {
-        Position pos = slotCoordinates.get(slotId);
-        return pos != null ? pos.y() : -1;
-    }
-
-    // --- Metodi di manipolazione di stato (usati da cargoservice) ---
-    public synchronized boolean isFull() {
-        return slotStates.values().stream().noneMatch(s -> s == SlotStatus.FREE);
-    }
-
-    public synchronized int reserveFirstFree() {
-        for (int i = 1; i <= MAX_SLOTS; i++) {
-            if (slotStates.get(i) == SlotStatus.FREE) {
-                slotStates.put(i, SlotStatus.RESERVED);
-                return i;
+    @Override
+    public synchronized int reserveNextFreeSlot() {
+        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
+            if (mainSlots[i] == SlotState.FREE) {
+                mainSlots[i] = SlotState.RESERVED;
+                return i + 1;
             }
         }
-        return -1; // Stiva piena
+        return NO_SLOT_AVAILABLE;
     }
 
-    public synchronized void releaseSlot(int slotId) {
-        if (slotStates.containsKey(slotId) && slotStates.get(slotId) == SlotStatus.RESERVED) {
-            slotStates.put(slotId, SlotStatus.FREE);
+    @Override
+    public synchronized void setSlotOccupied(int slotNumber) {
+        if (isValidSlot(slotNumber)) {
+            mainSlots[slotNumber - 1] = SlotState.OCCUPIED;
         }
     }
 
-    public synchronized void setSlotOccupied(int slotId) {
-        if (slotStates.containsKey(slotId)) {
-            slotStates.put(slotId, SlotStatus.OCCUPIED);
+    @Override
+    public synchronized void releaseSlot(int slotNumber) {
+        if (isValidSlot(slotNumber)) {
+            mainSlots[slotNumber - 1] = SlotState.FREE;
         }
     }
 
-    public synchronized String displayStatus() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= MAX_SLOTS; i++) {
-            if (i > 1) sb.append(",");
-            sb.append(i).append(":").append(slotStates.get(i));
+    @Override
+    public synchronized boolean isFull() {
+        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
+            if (mainSlots[i] == SlotState.FREE) {
+                return false;
+            }
         }
-        return sb.toString();
+        return true;
     }
+
+    private boolean isValidSlot(int slotNumber) {
+        return slotNumber >= 1 && slotNumber <= NUM_MAIN_SLOTS;
+    }
+    
+    @Override
+    public synchronized int getEntranceX(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return slotEntranceX[slotNumber-1];
+        }
+        return -1;
+    }
+    
+    @Override
+    public synchronized int getEntranceY(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return slotEntranceY[slotNumber-1];
+        }
+        return -1;
+    }
+    
+    @Override
+    public synchronized String getHoldStateString() {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
+            sb.append(mainSlots[i]);
+            if (i < NUM_MAIN_SLOTS - 1) {
+                sb.append(", ");
+            }
+        }
+        sb.append("]");
+        return sb.toString(); // Restituisce es: "[RESERVED, FREE, FREE, FREE]"
+    }
+    
+    @Override
+    public SlotState getSlotState(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return mainSlots[slotNumber-1];
+        }
+        return null;
+    }
+
+	@Override
+	public synchronized int getHomeX() {
+		return homePos[X];
+	}
+
+	@Override
+	public synchronized int getHomeY() {
+		return homePos[Y];
+	}
+
+	@Override
+	public synchronized int getIOPortX() {
+		return ioportPos[X];
+	}
+
+	@Override
+	public synchronized int getIOPortY() {
+		return ioportPos[Y];
+	}
+
+	@Override
+	public synchronized int getMarkerX() {
+		return markerPos[X];
+	}
+
+	@Override
+	public synchronized int getMarkerY() {
+		return markerPos[Y];
+	}
 }

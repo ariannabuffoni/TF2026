@@ -30,15 +30,18 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 		//val interruptedStateTransitions = mutableListOf<Transition>()
 		//IF actor.withobj !== null val actor.withobj.name� = actor.withobj.method�ENDIF
 		val h = cargoservice.Hold()
-		 
+		
 		        var CurrentReservedSlot = -1
-		        var CurrentState = "IDLE"
-		        var IsOutOfService = false
-		        var WaitStartTime = 0L
-		        var RemainingTime = 30000L
+		        var CurrentState        = "IDLE"
+		        var IsOutOfService      = false
+		        var Transporting        = false     // true mentre cargorobot sta trasportando
+		        var OosMsg              = "'Guasto'"
+		        var WaitStartTime       = 0L
+		        var RemainingTime       = 30000L
 		return { //this:ActionBasciFsm
 				state("s0") { //this:State
 					action { //it:State
+						delay(1000) 
 						CommUtils.outmagenta("$name | avvio CargoService Core")
 						 var ServiceWorking = "'WORKING'"  
 						forward("updateWorkingState", "updateWorkingState($ServiceWorking)" ,"ioport" ) 
@@ -51,11 +54,12 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 				}	 
 				state("idle") { //this:State
 					action { //it:State
-						 
-						            CurrentState = "IDLE" 
-						            var LedOff = "'off'"
-						            WaitStartTime = 0L
-						            RemainingTime = 30000L
+						
+						            CurrentState    = "IDLE"
+						            Transporting    = false
+						            var LedOff      = "'off'"
+						            WaitStartTime   = 0L
+						            RemainingTime   = 30000L
 						CommUtils.outmagenta("$name | Sistema in stato IDLE")
 						forward("led", "led($LedOff)" ,"ioport" ) 
 						//genTimer( actor, state )
@@ -63,19 +67,19 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t09",targetState="handleLoadRequest",cond=whenRequest("loadrequest"))
-					transition(edgeName="t010",targetState="handleOutOfService",cond=whenDispatch("outOfService"))
+					 transition(edgeName="t016",targetState="handleLoadRequest",cond=whenRequest("loadrequest"))
+					transition(edgeName="t017",targetState="handleOutOfService",cond=whenDispatch("outOfService"))
 				}	 
 				state("handleLoadRequest") { //this:State
 					action { //it:State
 						if( checkMsgContent( Term.createTerm("loadrequest(IOPORT_STATE)"), Term.createTerm("loadrequest(IOPORT_STATE)"), 
 						                        currentMsg.msgContent()) ) { //set msgArgList
-								 
+								
 								                var IoportState = payloadArg(0).toBoolean()
 								                var CurrentHoldState = h.getHoldStateString()
-								                
+								
 								                if (IoportState) {
-								                    var SystemBusyStr = "'ioport_occupied'" 
+								                    var SystemBusyStr = "'ioport_occupied'"
 								answer("loadrequest", "retrylater", "retrylater($SystemBusyStr,$CurrentHoldState)"   )  
 								CommUtils.outmagenta("$name | retrylater($SystemBusyStr, $CurrentHoldState)")
 								
@@ -113,7 +117,7 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 				}	 
 				state("engagedWaitContainer") { //this:State
 					action { //it:State
-						 
+						
 						            if (WaitStartTime == 0L) {
 						                WaitStartTime = System.currentTimeMillis()
 						            }
@@ -128,16 +132,16 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 				 	 		stateTimer = TimerActor("timer_engagedWaitContainer", 
 				 	 					  scope, context!!, "local_tout_"+name+"_engagedWaitContainer", RemainingTime )  //OCT2023
 					}	 	 
-					 transition(edgeName="t111",targetState="handleTimeout",cond=whenTimeout("local_tout_"+name+"_engagedWaitContainer"))   
-					transition(edgeName="t112",targetState="handleBusyRequest",cond=whenRequest("loadrequest"))
-					transition(edgeName="t113",targetState="handleContainer",cond=whenDispatch("containerSensed"))
-					transition(edgeName="t114",targetState="handleEngagedOutOfService",cond=whenDispatch("outOfService"))
+					 transition(edgeName="t118",targetState="handleTimeout",cond=whenTimeout("local_tout_"+name+"_engagedWaitContainer"))   
+					transition(edgeName="t119",targetState="handleBusyRequest",cond=whenRequest("loadrequest"))
+					transition(edgeName="t120",targetState="handleContainer",cond=whenDispatch("containerSensed"))
+					transition(edgeName="t121",targetState="handleOutOfService",cond=whenDispatch("outOfService"))
 				}	 
 				state("handleBusyRequest") { //this:State
 					action { //it:State
 						if( checkMsgContent( Term.createTerm("loadrequest(IOPORT_STATE)"), Term.createTerm("loadrequest(IOPORT_STATE)"), 
 						                        currentMsg.msgContent()) ) { //set msgArgList
-								 
+								
 								                var CurrentHoldState = h.getHoldStateString()
 								                var SystemEngagedStr = "'system_engaged'"
 								answer("loadrequest", "retrylater", "retrylater($SystemEngagedStr,$CurrentHoldState)"   )  
@@ -148,39 +152,15 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition( edgeName="goto",targetState="engagedWaitContainer", cond=doswitch() )
-				}	 
-				state("handleEngagedOutOfService") { //this:State
-					action { //it:State
-						CommUtils.outmagenta("$name | GUASTO RILEVATO DURANTE ENGAGED!")
-						 
-						            IsOutOfService = true
-						            
-						            // Release dello slot che era stato prenotato
-						            if (CurrentReservedSlot != -1) {
-						                h.releaseSlot(CurrentReservedSlot)
-						                CurrentReservedSlot = -1
-						            }
-						            
-						            var CurrentHoldState = h.getHoldStateString()
-						            var StateStr = "'OUT_OF_SERVICE'"
-						            var MsgStr = "'Guasto sensore durante attesa'"
-						            var LedRed = "'red'"
-						            var ServiceDown = "'OUT_OF_SERVICE'"
-						forward("led", "led($LedRed)" ,"ioport" ) 
-						forward("updateWorkingState", "updateWorkingState($ServiceDown)" ,"ioport" ) 
-						forward("updateHoldDisplay", "updateHoldDisplay($StateStr,$CurrentHoldState,$MsgStr)" ,"ioport" ) 
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition( edgeName="goto",targetState="outOfServiceState", cond=doswitch() )
+					 transition( edgeName="goto",targetState="waitTransport", cond=doswitchGuarded({ Transporting  
+					}) )
+					transition( edgeName="goto",targetState="engagedWaitContainer", cond=doswitchGuarded({! ( Transporting  
+					) }) )
 				}	 
 				state("handleTimeout") { //this:State
 					action { //it:State
 						CommUtils.outmagenta("$name | TIMEOUT scaduto! Container non rilevato entro 30s.")
-						 
+						
 						            if (CurrentReservedSlot != -1) {
 						                h.releaseSlot(CurrentReservedSlot)
 						                CurrentReservedSlot = -1
@@ -198,16 +178,43 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 				}	 
 				state("handleContainer") { //this:State
 					action { //it:State
-						CommUtils.outmagenta("$name | Container rilevato -> aggiornamento slot a OCCUPIED")
-						 
-						            if (CurrentReservedSlot != -1) {
-						                h.setSlotOccupied(CurrentReservedSlot)
-						                CurrentReservedSlot = -1
-						            }
+						CommUtils.outmagenta("$name | Container rilevato -> movimento robot")
+						
+						            Transporting = true
+						            var TargetX = h.getEntranceX(CurrentReservedSlot)
+						            var TargetY = h.getEntranceY(CurrentReservedSlot)
+						request("transportContainer", "transportContainer($CurrentReservedSlot,$TargetX,$TargetY)" ,"cargorobot" )  
+						//genTimer( actor, state )
+					}
+					//After Lenzi Aug2002
+					sysaction { //it:State
+					}	 	 
+					 transition( edgeName="goto",targetState="waitTransport", cond=doswitch() )
+				}	 
+				state("waitTransport") { //this:State
+					action { //it:State
+						CommUtils.outmagenta("$name | In attesa della fine del trasporto...")
+						//genTimer( actor, state )
+					}
+					//After Lenzi Aug2002
+					sysaction { //it:State
+					}	 	 
+					 transition(edgeName="t222",targetState="endTransport",cond=whenReply("transportDone"))
+					transition(edgeName="t223",targetState="handleOutOfService",cond=whenReply("transportFailed"))
+					transition(edgeName="t224",targetState="handleBusyRequest",cond=whenRequest("loadrequest"))
+					transition(edgeName="t225",targetState="handleOutOfService",cond=whenDispatch("outOfService"))
+				}	 
+				state("endTransport") { //this:State
+					action { //it:State
+						CommUtils.outmagenta("$name | Container portato nello slot definito")
+						
+						            h.setSlotOccupied(CurrentReservedSlot)
+						            CurrentReservedSlot = -1
 						            var CurrentHoldState = h.getHoldStateString()
 						            var StateStr = "'LOADED'"
 						            var LoadedMsgStr = "'Container preso in carico'"
 						forward("updateHoldDisplay", "updateHoldDisplay($StateStr,$CurrentHoldState,$LoadedMsgStr)" ,"ioport" ) 
+						delay(1500) 
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002
@@ -217,17 +224,31 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 				}	 
 				state("handleOutOfService") { //this:State
 					action { //it:State
-						CommUtils.outmagenta("$name | ERRORE SENSORE: Sistema in Out Of Service")
-						 
+						CommUtils.outmagenta("$name | GUASTO RILEVATO: Sistema in Out Of Service")
+						if( checkMsgContent( Term.createTerm("outOfService(CAUSE)"), Term.createTerm("outOfService(CAUSE)"), 
+						                        currentMsg.msgContent()) ) { //set msgArgList
+								 OosMsg = "'Guasto sensore'"  
+						}
+						if( checkMsgContent( Term.createTerm("transportFailed(CAUSE)"), Term.createTerm("transportFailed(CAUSE)"), 
+						                        currentMsg.msgContent()) ) { //set msgArgList
+								 OosMsg = "'Guasto robot'"  
+						}
+						
 						            IsOutOfService = true
+						
+						            // Lo slot viene rilasciato solo se il robot NON sta trasportando
+						            // (altrimenti il container potrebbe essere gia' nel robot)
+						            if (!Transporting && CurrentReservedSlot != -1) {
+						                h.releaseSlot(CurrentReservedSlot)
+						                CurrentReservedSlot = -1
+						            }
+						
 						            var CurrentHoldState = h.getHoldStateString()
 						            var StateStr = "'OUT_OF_SERVICE'"
-						            var MsgStr = "'Guasto sensore'"
 						            var LedRed = "'red'"
-						            var ServiceDown = "'OUT_OF_SERVICE'"
 						forward("led", "led($LedRed)" ,"ioport" ) 
-						forward("updateWorkingState", "updateWorkingState($ServiceDown)" ,"ioport" ) 
-						forward("updateHoldDisplay", "updateHoldDisplay($StateStr,$CurrentHoldState,$MsgStr)" ,"ioport" ) 
+						forward("updateWorkingState", "updateWorkingState($StateStr)" ,"ioport" ) 
+						forward("updateHoldDisplay", "updateHoldDisplay($StateStr,$CurrentHoldState,$OosMsg)" ,"ioport" ) 
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002
@@ -237,19 +258,19 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 				}	 
 				state("outOfServiceState") { //this:State
 					action { //it:State
-						CommUtils.outmagenta("$name | Sistema BLOCCO: Out Of Service")
+						CommUtils.outmagenta("$name | Sistema BLOCCATO: Out Of Service")
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t215",targetState="handleRejectOutOfService",cond=whenRequest("loadrequest"))
+					 transition(edgeName="t326",targetState="handleRejectOutOfService",cond=whenRequest("loadrequest"))
 				}	 
 				state("handleRejectOutOfService") { //this:State
 					action { //it:State
 						if( checkMsgContent( Term.createTerm("loadrequest(IOPORT_STATE)"), Term.createTerm("loadrequest(IOPORT_STATE)"), 
 						                        currentMsg.msgContent()) ) { //set msgArgList
-								 
+								
 								                var CurrentHoldState = h.getHoldStateString()
 								                var CauseStr = "'out_of_service'"
 								answer("loadrequest", "retrylater", "retrylater($CauseStr,$CurrentHoldState)"   )  

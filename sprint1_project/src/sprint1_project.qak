@@ -22,7 +22,7 @@ Dispatch led            : led(STATE)
 
 
 
-Context ctxcargoservice ip [host="localhost" port=8050]
+Context ctxcargoservice ip [host="localhost" port=8120]
 
 // ---------------- Attore IOPORT -----------------------------------------------------------
 QActor ioport context ctxcargoservice {
@@ -305,7 +305,7 @@ QActor cargoservice context ctxcargoservice
     Goto idle
     
     State handleOutOfService {
-        println("$name | ERRORE SENSORE: Ingresso in Out Of Service") color magenta
+        println("$name | ERRORE SENSORE: Sistema in Out Of Service") color magenta
         [# 
             IsOutOfService = true
             var CurrentHoldState = h.getHoldStateString()

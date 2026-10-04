@@ -69,7 +69,7 @@ QActor cargorobot context ctxcargoservice {
     	var Slot = "slotX"
     	var X = 0
     	var Y = 0
-    	var StepTime = 10
+    	var StepTime = 345
    	#]
     State s0 initial {
         println("$name | starting...") color cyan
@@ -79,22 +79,34 @@ QActor cargorobot context ctxcargoservice {
     State idle{
     	println("$name | waiting for a container...") color cyan
     }
-    Transition t0 whenRequest transportContainer -> executeTransportSlot5
+    Transition t0 whenRequest transportContainer -> executeTransportIOPort
     
-    State executeTransportSlot5 {
-    	println("$name | deposit in slot5") color cyan
+    State executeTransportIOPort {
+    	println("$name | collecting container...") color cyan
     	onMsg (transportContainer : transportContainer(SLOT, TARGETX, TARGETY)){
     		[#
     			Slot = payloadArg(0)
     			X = payloadArg(1).toInt()
     			Y = payloadArg(2).toInt()
-    			var X5 = 5
-    			var Y5 = 5
+    			val XIOP  = 4
+        		val YIOP  = 0
     		#]
-    		request robotsmart_mock -m moverobot : moverobot ($X5, $Y5, $StepTime)
+    		request robotsmart_mock -m moverobot : moverobot ($XIOP, $YIOP, $StepTime)
     	}
     }
     Transition t1
+    	whenReply moverobotdone -> executeTransportSlot5
+    	whenReply moverobotfailed -> handleFinish
+    	
+    State executeTransportSlot5{
+    	[# 
+    		val X5    = 2         
+       		val Y5    = 5	
+    	#]
+    	println ("$name | deposit in slot5...") color cyan
+    	request robotsmart_mock -m moverobot : moverobot ($X5, $Y5, $StepTime)
+    }
+    Transition t3
     	whenReply moverobotdone -> marking
     	whenReply moverobotfailed -> handleFinish
     	
@@ -115,7 +127,8 @@ QActor cargorobot context ctxcargoservice {
     State backHome{
     	[#
     		var XHOME = 0
-    		var YHOME = 0 	
+    		var YHOME = 0
+    		h.setSlotOccupied(Slot)
     	#]
     	println ("$name | going back home") color cyan
     	request robotsmart_mock -m moverobot : moverobot ($XHOME, $YHOME, $StepTime)

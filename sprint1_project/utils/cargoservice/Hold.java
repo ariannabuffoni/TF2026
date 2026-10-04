@@ -1,17 +1,19 @@
 package cargoservice;
 
-public class Hold {
-    public enum SlotState {
-        FREE,
-        RESERVED,
-        OCCUPIED
-    }
+import cargoservice.IHold.SlotState;
 
-    public static final int NUM_MAIN_SLOTS = 4;
-    public static final int NO_SLOT_AVAILABLE = -1;
+public class Hold implements IHold{
 
     private final SlotState[] mainSlots = new SlotState[NUM_MAIN_SLOTS];
-    private SlotState slot5 = SlotState.FREE;
+    /*
+     * INGRESSI SCELTI:
+     * - slot1 = (0,2)
+     * - slot2 = (0,3)
+     * - slot3 = (2,2)
+     * - slot4 = (2,3)
+     */
+    private final int[] slotEntranceX = {0,0,2,2};
+    private final int[] slotEntranceY = {2,3,2,3};
 
     public Hold() {
         for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
@@ -19,7 +21,6 @@ public class Hold {
         }
     }
 
-    // Riserva il primo slot libero [1,4] o restituisce -1 se la stiva è piena
     public synchronized int reserveNextFreeSlot() {
         for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
             if (mainSlots[i] == SlotState.FREE) {
@@ -30,21 +31,18 @@ public class Hold {
         return NO_SLOT_AVAILABLE;
     }
 
-    // Occupa uno slot 
     public synchronized void setSlotOccupied(int slotNumber) {
         if (isValidSlot(slotNumber)) {
             mainSlots[slotNumber - 1] = SlotState.OCCUPIED;
         }
     }
 
-    // Libera uno slot
     public synchronized void releaseSlot(int slotNumber) {
         if (isValidSlot(slotNumber)) {
             mainSlots[slotNumber - 1] = SlotState.FREE;
         }
     }
 
-    // Controlla se la stiva è piena (nessuno slot in stato FREE)
     public synchronized boolean isFull() {
         for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
             if (mainSlots[i] == SlotState.FREE) {
@@ -54,31 +52,25 @@ public class Hold {
         return true;
     }
 
-    // Restituisce lo stato di uno slot principale (1-4)
-    public synchronized SlotState getSlotState(int slotNumber) {
-        if (isValidSlot(slotNumber)) {
-            return mainSlots[slotNumber - 1];
-        }
-        return null;
-    }
-
-    // Restituisce lo stato dello slot temporaneo 5
-    public synchronized SlotState getSlot5State() {
-        return slot5;
-    }
-
-    // Imposta lo stato dello slot temporaneo 5 
-    public synchronized void setSlot5State(SlotState state) {
-        this.slot5 = state;
-    }
-
-    // Controlla che il numero dello slot sia compreso tra 1 e 4
     private boolean isValidSlot(int slotNumber) {
         return slotNumber >= 1 && slotNumber <= NUM_MAIN_SLOTS;
     }
     
-    // Ritorna una stringa formattata per i messaggi QAk (es. "FREE-RESERVED-FREE-FREE")
-    public String getHoldStateString() {
+    public synchronized int getEntranceX(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return slotEntranceX[slotNumber-1];
+        }
+        return -1;
+    }
+    
+    public synchronized int getEntranceY(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return slotEntranceY[slotNumber-1];
+        }
+        return -1;
+    }
+    
+    public synchronized String getHoldStateString() {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
             sb.append(mainSlots[i]);
@@ -89,14 +81,11 @@ public class Hold {
         sb.append("]");
         return sb.toString(); // Restituisce es: "[RESERVED, FREE, FREE, FREE]"
     }
-
-    // Restituisce la rappresentazione estesa per log e Display
-    public synchronized String getStatusString() {
-        StringBuilder sb = new StringBuilder("HOLD_STATUS:");
-        for (int i = 0; i < NUM_MAIN_SLOTS; i++) {
-            sb.append(String.format("[%d:%s]", i + 1, mainSlots[i]));
+    
+    public SlotState getSlotState(int slotNumber) {
+    	if (isValidSlot(slotNumber)) {
+    		return mainSlots[slotNumber-1];
         }
-        sb.append(String.format("|[5:%s]", slot5));
-        return sb.toString();
+        return null;
     }
 }

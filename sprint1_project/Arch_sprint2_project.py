@@ -36,5 +36,5 @@ with Diagram('sprint2_projectArch', show=False, outformat='png', graph_attr=grap
      cargorobot >> Edge(color='magenta', style='solid', decorate='true', label='<moverobot<font color="darkgreen"> moverobotdone moverobotfailed</font> &nbsp; tuneAtHome<font color="darkgreen"> tuneDone</font> &nbsp; >',  fontcolor='magenta') >> robotsmart
      ioport >> Edge(color='blue', style='solid',  decorate='true', label='<containerSensed &nbsp; outOfService &nbsp; >',  fontcolor='blue') >> cargoservice
      cargoservice >> Edge(color='blue', style='solid',  decorate='true', label='<updateWorkingState &nbsp; led &nbsp; updateHoldDisplay &nbsp; >',  fontcolor='blue') >> ioport
-     cargorobot >> Edge(color='blue', style='solid',  decorate='true', label='<setplanbuildelay &nbsp; setrobotstate &nbsp; >',  fontcolor='blue') >> robotsmart
+     cargorobot >> Edge(color='blue', style='solid',  decorate='true', label='<setrobotstate &nbsp; setplanbuildelay &nbsp; >',  fontcolor='blue') >> robotsmart
 diag

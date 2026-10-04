@@ -53,8 +53,8 @@ class Cargoservice_ridotto ( name: String, scope: CoroutineScope, isconfined: Bo
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t09",targetState="handleTransportComplited",cond=whenReply("transportDone"))
-					transition(edgeName="t010",targetState="handleTransportFailed",cond=whenReply("transportFailed"))
+					 transition(edgeName="t011",targetState="handleTransportComplited",cond=whenReply("transportDone"))
+					transition(edgeName="t012",targetState="handleTransportFailed",cond=whenReply("transportFailed"))
 				}	 
 				state("handleTransportComplited") { //this:State
 					action { //it:State
@@ -66,7 +66,7 @@ class Cargoservice_ridotto ( name: String, scope: CoroutineScope, isconfined: Bo
 				 	 		stateTimer = TimerActor("timer_handleTransportComplited", 
 				 	 					  scope, context!!, "local_tout_"+name+"_handleTransportComplited", 5000.toLong() )  //OCT2023
 					}	 	 
-					 transition(edgeName="t111",targetState="handleContainer",cond=whenTimeout("local_tout_"+name+"_handleTransportComplited"))   
+					 transition(edgeName="t113",targetState="handleContainer",cond=whenTimeout("local_tout_"+name+"_handleTransportComplited"))   
 				}	 
 				state("handleTransportFailed") { //this:State
 					action { //it:State
