@@ -1,0 +1,890 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+
+<link rel="stylesheet" type="text/css" href="css/mystyle.css">
+<!--
+    <script type="text/javascript" src="../css/issStyle.js"></script>
+-->
+    
+</head>
+   
+<title>TF26_Sprint3_v0</title></head>
+    
+
+<body>
+<div id="top">
+<h1>TF26 - Sprint3</h1>
+</div>  
+
+<div class="body">
+<p><b>Goal Sprint3: </b> 
+Progettare e realizzare il sottosistema telemetrico sonar e l'attuatore led, integrando il firmware su microcontrollore o nodo dedicato. Completare la gestione delle anomalie telemetriche con transizione nello stato Out of service a display e gestire la segnalazione luminosa nelle diverse fasi operative.
+</p>
+
+<h2>Introduction</h2>
+<p>
+A <i>Maritime Cargo shipping company</i> (from now on, simply <b>company</b>) intends to automate the operations of load of
+<b>containers</b> in the ship’s cargo hold (or simply <b>hold</b>). To this end, the company plans to employ a <i>Differential Drive
+Robot</i> (from now, called <b>cargorobot</b>).
+</p>
+
+<p>
+The <i>hold</i> is a rectangular, flat area with an Input/Output port (<b>IOPort</b>). The area provides <code>4 slots</code> to store the
+containers and a slot named <b>slot5</b>.
+</p>
+
+<div style="text-align: center;">
+	<img src="./img/TF26_immagine_consegna.png" alt="immagine consegna" width="50%" height="50%">
+</div>
+
+<p>
+	In the picture above:
+	<ul>
+		<li>
+			The <b>slots1-4</b> depict the hold areas reserved to store one <i>container</i> each,
+		</li>
+		<li>
+			The <b>slot5</b> depicts an area, where the <i>cargorobot</i> must temporarily store a container, before to place it in one of the <i>slots1-4</i>. During temporary storage, a ‘marker’ device labels the container with an identification barcode and signals when this marking activity is completed.
+		</li>
+		<li>
+			The <b>IOPort</b> is a device with a <b>pushbutton</b> and <b>a display</b>. The <i>pushbutton</i> is pressed by the customer in order to to send a request to load a container on the cargo. The <i>display</i> is used to show the answer to the request and to show the current state of the <i>hold</i>.
+		</li>
+		<li>
+			The <b>sensor</b> associated to the <i>IOPort</i> is a device (a <i>sonar</i>) used to detect the presence of a container, when it measures a distance D, such that <code>D &lt; DFREE/2</code>, during a reasonable time (e.g. 3 secs).
+		</li>
+	</ul>
+</p>
+
+
+
+<h2>Requirements</h2>
+<div class="remark">
+<p>
+	The company asks us to build service named <b>cargoservice</b> that should work as follows.
+</p>
+
+<p>
+	The <i>cargoservice</i> is able to receive a <b>request to load</b> a container sent by some customer by using the <i>pushbutton</i> of the <i>IOPort</i>.
+	<ul>
+		<li>
+			It sends the answer <code>retrylater</code>, if the <b>IOPort</b> is currently occupied by a container or if the system is <i>Out of service</i>
+		</li>
+		<li>
+			It rejects the request when the hold is already full, i.e. the <code>slots1-4</code> are already occupied.
+		</li>
+		<li>
+			Otherwise, it considers the system as <b>engaged</b>, detects a free slot and returns as answer the name of such a
+			reserved slot. While engaged, the system must blink a Led.
+		</li>
+	</ul>
+</p>
+
+<p>
+	When the <i>request</i> to load is accepted, the customer must move the container in the <i>sensor</i> area within prefixed amount
+	of time (e.g. 30 secs), otherwise the systems becomes <b>disengaged</b>. Then, the <i>cargoservice</i> uses the <i>cargorobot</i> to
+	move the container from the <i>IOPort</i> to the <i>slot5</i> (for marking the container) and then to the reserved slot.
+</p>
+
+<p>
+	The service must also show on the <i>display</i> on the <i>IOPort</i>:
+	<ul>
+		<li>
+			the current state of the <i>hold</i>
+		</li>
+		<li>
+			the message <b>‘Service working’</b>, when it is all is going well
+		</li>
+		<li>
+			the message <b>‘Out of service’</b> if the <i>sonar sensor</i> measures a distance <code>D &gt; DFREE</code> for at least 3 secs (perhaps a
+			failure of the <i>sonar</i>).
+		</li>
+	</ul>
+</p>
+</div>
+
+
+<h2>Requirement analysis</h2>
+<div class="remark">
+    <p>
+        L'analisi dei requisiti è stata svolta nello <a href="https://ariannabuffoni.github.io/TF2026/BuffoniPellegriniVarisco_TF26_v0.html" target="_blank">Sprint0</a>.
+    </p>
+</div>
+
+<h2>Problem analysis</h2>
+<div class="remark">
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Il ruolo dell'attore sonar come intermediario tecnologico</h3>
+        <p>
+            Il dispositivo fisico preposto al campionamento dello spazio antistante l'IOPort è un microcontrollore Raspberry PicoW dotato di un sensore a ultrasuoni HC-SR04. 
+            Il PicoW esegue un runtime leggero MicroPython e dispone di risorse computazionali e stack di rete limitati:
+            non è in grado di eseguire l'infrastruttura JVM né di istanziare il runtime degli attori QAk.   Non è concepibile accoppiare direttamente la logica centrale di cargoservice con le letture grezze del microcontrollore:
+            <ul>
+                <li>
+                    Il microcontrollore produce misurazioni scalari istantanee rumorose (distanza in centimetri).
+                </li>
+                <li>
+                    cargoservice deve invece reagire unicamente a condizioni logiche di dominio stabili e validate nel tempo ("container posizionato con successo", "anomalia hardware rilevata").
+                </li>
+            </ul>
+            Si conferma la scelta architetturale delineata nello Sprint 0: introdurre un attore software dedicato, sonar (QActor in ctxcargoservice), 
+            avente il ruolo di Adapter tecnologico e filtro semantico. L'attore sonar aggrega il flusso di campionamento grezzo proveniente dal PicoW, applica la logica dei filtri temporali e notifica a cargoservice, cargorobot e ioport solo le transizioni di stato confermate.
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Canale di Comunicazione tra Raspberry PicoW e l'Attore sonar</h3>
+        <p>
+            Il microcontrollore PicoW deve comunicare la distanza $D$ all'attore sonar e ricevere dal sistema il comando di attivazione del LED. Analizziamo le alternative per questo canale eterogeneo:<br/>
+            <b>TABELLA PER DESY</b>
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Integrazione di MQTT nel Modello QAk: Nativo vs Adapter</h3>
+        <p>
+            Scelto MQTT come canale di trasporto, si presentano due modalità per far interagire il broker con l'attore sonar:
+            <ol>
+                <li>
+                    Adapter Java dedicato (approccio simile a IOPortWsAdapter): Una classe POJO apre la connessione Paho MQTT, riceve i messaggi e inietta dispatch nell'attore tramite sendMsgToMyself. Seppur efficace per WebSocket, questa soluzione introduce codice boilerplate ridondante quando il framework offre alternative dichiarative.
+                </li>
+                <li>
+                    Supporto Nativo QAk a livello di System (Scelta Adottata): Il metamodello QAk permette di dichiarare a livello di sistema un broker MQTT con la direttiva:
+                    <pre>
+mqttBroker "IP_BROKER" port 1883 eventTopic "cargoservice/sonar/distance"
+                    </pre>
+                    In questo modo, qualsiasi evento pubblicato su tale topic nel formato standard msg(...) viene intercettato direttamente dal runtime QAk e consegnato come Event sonarreading : sonarreading(D) a chiunque possieda una transizione whenEvent sonarreading.
+                </li>
+            </ol>
+            In direzione inversa (verso il LED del PicoW): Il runtime non dispone di una dichiarazione implicita per topic in uscita; l'invio del comando verso il PicoW viene quindi gestito in modo pulito invocando l'oggetto di runtime mqtt.publish(...) direttamente dall'attore sonar.
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Frequenza di Campionamento e Validazione Temporale delle Soglie</h3>
+        <p>
+            I requisiti impongono il rispetto di due soglie geometrico-temporali:
+            <ol>
+                <li>
+                    Rilevamento Container: D &lt; DFREE/2 mantenuto per un intervallo temporale continuo di almeno 3 secondi.
+                </li>
+                <li>
+                    Allarme Guasto Sonar: D &gt;DFREE mantenuto per un intervallo continuo di almeno 3 secondi.
+                </li>
+            </ol>
+            <h4>Scelta della Frequenza di Pubblicazione del PicoW</h4>
+            <ul>
+                <li>
+                    Una frequenza elevata (es. 10 Hz / 100 ms) genererebbe un traffico di rete inutile sul broker MQTT e introdurrebbe rumore sui micro-rimbalzi degli ultrasuoni, senza apportare vantaggi significativi a fronte di una finestra di filtro ampia di 3 secondi.
+                </li>
+                <li>
+                    Una frequenza di 1 lettura al secondo (1 Hz) garantisce circa 3 campioni consecutivi all'interno della finestra di convalida, sufficienti a scongiurare falsi positivi (dovuti a passaggi transitori di operatori o errori isolati di eco) preservando la reattività del sistema e riducendo al minimo il sovraccarico di rete.
+                </li>
+            </ul>
+            <h4>Responsabilità del Monitoraggio Temporale</h4>
+            Il Raspberry PicoW si limita a campionare la distanza e trasmettere il dato numerico grezzo. È l'attore sonar a detenere la macchina a stati temporale:
+            <ul>
+                <li>
+                    Registra il timestamp del primo superamento di soglia ($T_{\text{start}}$).
+                </li>
+                <li>
+                    Solo quando le letture persistono oltre la soglia per un intervallo $(T_{\text{current}} - T_{\text{start}}) \ge 3000\text{ ms}$, l'attore emette i messaggi di conferma verso il sistema centrale (sonarcontainer per il carico, sonarfault per il guasto).
+                </li>
+                <li>
+                    Al contrario, l'uscita da una condizione (es. container rimosso o distanza rientrata nei limiti normali) viene notificata istantaneamente (setOccupied(false) o sonarrestored) senza necessità di ritardi di conferma.
+                </li>
+            </ul>
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Reazione di cargorobot al guasto del Sonar durante il movimento</h3>
+        <p>
+            Il committente specifica che l'anomalia telemetrica ($D > \text{DFREE}$ persistente per più di 3 secondi) pone l'intero sistema in stato Out of service.
+            Sorge una questione critica su come debba comportarsi cargorobot qualora tale guasto si manifesti mentre il robot è in movimento lungo una delle quattro tratte previste (verso IOPort, verso slot5, verso lo slot riservato, verso HOME):
+            <ul>
+                <li>
+                    Opzione 1 (Arresto e annullamento della missione): Il robot abortisce il trasporto, rilascia lo slot e tenta di rientrare in HOME o dichiara fallimento immediato. Questa scelta è rischiosa e scorretta: se il robot trasporta fisicamente un container ed è a metà strada, non può resettare lo stato della stiva senza causare inconsistenze fisiche tra carico e allocazione dello slot.
+                </li>
+                <li>
+                    Opzione 2 (Sospensione della tratta con evento alarm e successiva ripresa): Quando l'attore sonar rileva il guasto, inoltra un dispatch sonarfault sia a cargoservice sia a cargorobot.
+                    <ol>
+                        <li>
+                            cargorobot, sensibile a sonarfault in ciascuno dei suoi stati di attesa movimento, emette immediatamente l'evento alarm: alarm(sonarfault) verso RobotSmart26, che provvede a fermare istantaneamente il robot.
+                        </li>
+                        <li>
+                            cargorobot memorizza la tratta attiva (Leg: toIOPort, toSlot5, toReserved, toHome) e le coordinate di destinazione correnti.
+                        </li>
+                        <li>
+                            All'eventuale ricezione di sonarrestored (distanza tornata nei valori ammissibili), cargorobot reinvia la richiesta moverobot verso il target interrotto, riprendendo la missione senza perdere lo stato di avanzamento.
+                        </li>
+                    </ol>
+                </li>
+            </ul>
+            Si adotta l'Opzione 2 in quanto rispetta i requisiti di sicurezza industriale e previene disallineamenti di stato.
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Architettura dei Contesti: Context Dedicato per sonar vs Context Condiviso</h3>
+        <p>
+            L'introduzione del Raspberry PicoW rappresenta l'aggiunta di un nodo hardware fisico separato nella rete. Ci si domanda se tale separazione imponga la creazione di un ulteriore contesto QAk (ctxsonar) isolato.
+            <ul>
+                <li>
+                    Analisi dei confini di rete: La vera disomogeneità tecnologica risiede tra il microcontrollore PicoW (ambiente MicroPython) e la JVM. Questo salto di rete e di stack è già interamente assorbito dal broker MQTT.
+                </li>
+                <li>
+                    Valutazione del contesto QAk: Spostare l'attore sonar in un processo/contesto QAk separato (ctxsonar) costringerebbe a dichiarare attori remoti (ExternalQActor) e a introdurre socket TCP aggiuntivi tra sonar e cargoservice/cargorobot, senza alcun beneficio architetturale.
+                </li>
+                <li>
+                    Decisione: L'attore sonar viene collocato all'interno del contesto ctxcargoservice (porta 8120), condividendo il processo JVM con gli altri attori dell'applicazione (cargoservice, cargorobot, ioport). L'unico vero contesto esterno rimane ctxrobotsmart (porta 8020), in quanto servizio preesistente fornito dal committente.
+                </li>
+            </ul>   
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Gestione dell'Attuatore LED su Microcontrollore</h3>
+        <p>
+            Il LED deve riflettere fedelmente le transizioni operative stabilite: spento in idle, lampeggiante in engaged e durante la movimentazione, rosso fisso o spento in Out of service.
+            <ul>
+                <li>
+                    Il firmware MicroPython sul PicoW opera su un singolo thread di esecuzione e non può ricorrere a delay bloccanti (time.sleep) che impedirebbero il campionamento continuo del sensore a ultrasuoni.
+                </li>
+                <li>
+                    Il comando di accensione/spegnimento lampeggio (blinkLed(true) / blinkLed(false)) viene inviato da cargoservice via dispatch verso sonar, che lo pubblica sul topic MQTT cargoservice/sonar/led.
+                </li>
+                <li>
+                    Il PicoW aggiorna un flag booleano nel callback di ricezione MQTT e alterna lo stato del pin GPIO del LED in modo non bloccante all'interno del ciclo principale di lettura.
+                </li>
+            </ul>
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Modello dell'Analista del Problema</h3>
+        <p>
+            A completamento dell'analisi, viene formalizzato il modello logico che include il broker MQTT, i nuovi eventi di lettura telemetrica, i dispatch di notifica guasto/ripristino e il pilotaggio del LED:
+            <pre>
+System sprint3
+
+// Broker MQTT per interfacciamento con Raspberry PicoW
+mqttBroker "127.0.0.1" port 1883 eventTopic "cargoservice/sonar/distance"
+
+// --- Messaggi Telemetrici e Segnalazioni Sonar/LED ---
+Event    sonarreading    : sonarreading(D)          // Lettura istantanea grezza da PicoW
+Dispatch sonarcontainer  : sonarcontainer(DISTANCE) // Soglia D < DFREE/2 confermata per >= 3s
+Dispatch sonarfault      : sonarfault(CAUSE)        // Soglia D > DFREE confermata per >= 3s
+Dispatch sonarrestored   : sonarrestored(NONE)      // Rientro nei parametri normali
+Dispatch blinkLed        : blinkLed(FLAG)           // Comando controllo LED verso PicoW
+Event    alarm           : alarm(X)                 // Arresto di emergenza per RobotSmart26
+
+// --- Messaggi di Trasporto e Servizio (dagli Sprint 1 e 2) ---
+Request  loadrequest        : loadrequest(IOPORT_STATE)
+Reply    retrylater         : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply    reject             : reject(HOLD_STATE) for loadrequest
+Reply    engaged            : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+
+Dispatch updateHoldDisplay  : updateHoldDisplay(STATE, HOLD_STATE, MSG)
+Dispatch updateWorkingState : updateWorkingState(STATE)
+Dispatch button_pushed      : button_pushed(X)
+
+Request  transportContainer : transportContainer(SLOT, TARGETX, TARGETY)
+Reply    transportDone      : transportDone(SLOT) for transportContainer
+Reply    transportFailed    : transportFailed(CAUSE) for transportContainer
+
+Request  moverobot          : moverobot(TARGETX, TARGETY, STEPTIME)
+Reply    moverobotdone      : moverobotok(ARG) for moverobot
+Reply    moverobotfailed    : moverobotfailed(PLANDONE, PLANTODO) for moverobot
+
+// --- Contesti Architetturali ---
+Context ctxcargoservice ip [host="localhost" port=8120]
+Context ctxrobotsmart   ip [host="127.0.0.1" port=8020]
+
+ExternalQActor robotsmart context ctxrobotsmart
+            </pre>
+        </p>
+    </div>
+</div>
+
+<h2>Test plans</h2>
+<div class="remark">
+    <p>
+        I test plan per lo Sprint 3 si concentrano sulla validazione formale del nuovo sottosistema telemetrico, del filtraggio temporale delle letture e della gestione della sicurezza e dei guasti. Per garantire una verifica rigorosa e ripetibile, i test sono strutturati su due livelli operativi:
+        <ul>
+            <li>
+                Livello A (Test Funzionali di Unità e Integrazione Mock/Simulata): Validano la logica interna dell'attore sonar e la reattività di cargoservice e cargorobot simulando l'invio delle letture via MQTT (tramite script o comandi mosquitto_pub), verificando il rispetto esatto delle finestre temporali di 3 secondi senza dipendere dall'hardware fisico.
+            </li>
+            <li>
+                Livello B (Test di Integrazione End-to-End con Hardware Reale): Validano il comportamento dell'intero sistema integrato con il microcontrollore Raspberry PicoW, il sensore HC-SR04 e l'attuatore LED sul banco di lavoro.
+            </li>
+        </ul>
+        <h4>Livello A: Test Funzionali dell'Attore sonar e Gestione Guasti (Letture Simulate)</h4>
+        <b>TABELLA PER DESY</b><br/>
+        <h4>Livello B: Test di Integrazione End-to-End con Raspberry PicoW e Simulatore</h4>
+        <b>TABELLA PER DESY</b><br/>
+    </p>
+</div>
+
+<h2>Project</h2>
+<div class="remark">
+    <p>
+        In conformità con la metodologia del corso e gli incrementi dei precedenti sprint, il prototipo dello Sprint 3 formalizza l'integrazione telemetrica nel modello eseguibile sprint3.qak. Il sistema incorpora l'attore sonar nel contesto applicativo, introduce il broker MQTT per dialogare con il microcontrollore e arricchisce le macchine a stati di cargoservice e cargorobot con la gestione delle finestre temporali e della sicurezza.
+        
+        <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Definizione di Sistema e Broker MQTT (sprint3.qak)</h3>
+        <p>
+            Il broker MQTT viene dichiarato direttamente a livello di sistema. L'infrastruttura QAk si sottoscrive automaticamente al topic telemetrico traducendo ogni payload in arrivo in un evento sonarreading:
+            <pre>
+System sprint3
+
+// Dichiarazione nativa del broker MQTT per la ricezione telemetrica
+mqttBroker "127.0.0.1" port 1883 eventTopic "cargoservice/sonar/distance"
+
+// --- Eventi e Dispatch per Sonar e LED ---
+Event    sonarreading    : sonarreading(D)          // Lettura di distanza grezza da PicoW
+Dispatch sonarcontainer  : sonarcontainer(DISTANCE) // Presenza container confermata (D < DFREE/2 per >= 3s)
+Dispatch sonarfault      : sonarfault(CAUSE)        // Guasto sospetto confermato (D > DFREE per >= 3s)
+Dispatch sonarrestored   : sonarrestored(NONE)      // Ripristino condizioni normali
+Dispatch blinkLed        : blinkLed(FLAG)           // Comando controllo LED verso PicoW via MQTT
+Event    alarm           : alarm(X)                 // Arresto immediato inviato a RobotSmart26
+
+// --- Protocollo applicativo consolidato dagli Sprint precedenti ---
+Request  loadrequest        : loadrequest(IOPORT_STATE)
+Reply    retrylater         : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply    reject             : reject(HOLD_STATE) for loadrequest
+Reply    engaged            : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+
+Dispatch updateHoldDisplay  : updateHoldDisplay(STATE, HOLD_STATE, MSG)
+Dispatch updateWorkingState : updateWorkingState(STATE)
+Dispatch button_pushed      : button_pushed(X)
+
+Request  transportContainer : transportContainer(SLOT, TARGETX, TARGETY)
+Reply    transportDone      : transportDone(SLOT) for transportContainer
+Reply    transportFailed    : transportFailed(CAUSE) for transportContainer
+
+Request  moverobot          : moverobot(TARGETX, TARGETY, STEPTIME)
+Reply    moverobotdone      : moverobotok(ARG) for moverobot
+Reply    moverobotfailed    : moverobotfailed(PLANDONE, PLANTODO) for moverobot
+
+// --- Contesti architetturali ---
+Context ctxcargoservice ip [host="localhost" port=8120]
+Context ctxrobotsmart   ip [host="127.0.0.1" port=8020]
+
+ExternalQActor robotsmart context ctxrobotsmart
+            </pre>
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>L'attore sonar</h3>
+        <p>
+            L'attore sonar gestisce il filtraggio delle soglie telemetriche mantenendo i timestamp di sistema. Trasmette gli aggiornamenti di stato solo se le letture persistono oltre la finestra di convalida di 3000 ms:
+        </p>
+            <pre>
+QActor sonar context ctxcargoservice {
+    [#
+        val DFREE = 30.0
+        var Dist = 0.0
+        var Occupied = false
+        var Faulted = false
+        var T0Container = 0L
+        var T0Fault = 0L
+        val WINDOW = 3000L
+    #]
+
+    State idle initial {
+        println("$name | pronto in ascolto degli eventi sonar via MQTT") color blue
+    }
+    Transition t0 
+        whenEvent sonarreading -> onReading
+        whenMsg   blinkLed     -> onBlink
+
+    State onReading {
+        onMsg(sonarreading : sonarreading(D)) {
+            [#
+                Dist = payloadArg(0).toDouble()
+                val now = System.currentTimeMillis()
+            #]
+
+            // --- Logica Finestra Convalida Container (D < DFREE/2 per >= 3s) ---
+            if [# Dist < (DFREE / 2.0) #] {
+                [# if (T0Container == 0L) T0Container = now #]
+                if [# !Occupied && (now - T0Container) >= WINDOW #] {
+                    [# Occupied = true #]
+                    println("$name | Container confermato a D=$Dist cm per >= 3s") color blue
+                    forward cargoservice -m sonarcontainer : sonarcontainer($Dist)
+                }
+            } else {
+                [# T0Container = 0L #]
+                if [# Occupied && Dist >= (DFREE / 2.0) #] {
+                    [# Occupied = false #]
+                    println("$name | Container rimosso dall'area sensore") color blue
+                }
+            }
+
+            // --- Logica Finestra Convalida Guasto Sonar (D > DFREE per >= 3s) ---
+            if [# Dist > DFREE #] {
+                [# if (T0Fault == 0L) T0Fault = now #]
+                if [# !Faulted && (now - T0Fault) >= WINDOW #] {
+                    [# Faulted = true #]
+                    println("$name | GUASTO RILEVATO: D=$Dist cm per >= 3s") color red
+                    forward cargoservice -m sonarfault : sonarfault(sonarOutOfRange)
+                    forward cargorobot   -m sonarfault : sonarfault(sonarOutOfRange)
+                }
+            } else {
+                [# T0Fault = 0L #]
+                if [# Faulted #] {
+                    [# Faulted = false #]
+                    println("$name | Sonar ripristinato entro i parametri normali") color blue
+                    forward cargoservice -m sonarrestored : sonarrestored(NONE)
+                    forward cargorobot   -m sonarrestored : sonarrestored(NONE)
+                }
+            }
+        }
+    }
+    Goto idle
+
+    State onBlink {
+        onMsg(blinkLed : blinkLed(FLAG)) {
+            [#
+                val flag = payloadArg(0)
+                val ledDispatch = unibo.basicomm23.utils.CommUtils.buildDispatch(
+                    name, "blinkLed", "blinkLed($flag)", "picow"
+                )
+                mqtt.publish("cargoservice/sonar/led", ledDispatch.toString())
+            #]
+            println("$name | Comando LED ($flag) inoltrato a PicoW via MQTT") color blue
+        }
+    }
+    Goto idle
+}
+            </pre>
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Raffinamento dell'attore cargoservice</h3>
+        <p>
+            Nello Sprint 3, cargoservice sincronizza l'avvio della missione alla ricezione di sonarcontainer e governa lo stato protetto Out of service:
+        </p>
+            <pre>
+State engaged {
+    println("$name | ENGAGED: attesa rilevamento container dal sonar (max 30s)") color magenta
+    forward sonar -m blinkLed : blinkLed(true)
+}
+Transition tEng 
+    whenTime 30000          -> disengagedTimeout
+    whenMsg sonarcontainer  -> startTransport
+    whenMsg sonarfault      -> engagedOutOfService
+    whenRequest loadrequest -> rejectBusyRequest
+
+State startTransport {
+    println("$name | Container rilevato fisicamente: incarico cargorobot") color magenta
+    [#
+        val targetX = h.getSlotX(CurrentReservedSlot)
+        val targetY = h.getSlotY(CurrentReservedSlot)
+    #]
+    request cargorobot -m transportContainer : transportContainer($CurrentReservedSlot, $targetX, $targetY)
+}
+Transition tTrans 
+    whenReply transportDone    -> handleTransportSuccess
+    whenReply transportFailed  -> handleTransportFailure
+    whenMsg   sonarfault       -> transportOutOfService
+    whenMsg   sonarrestored    -> transportRestored
+    whenRequest loadrequest    -> rejectBusyRequest
+
+State engagedOutOfService {
+    println("$name | GUASTO durante fase engaged: rilascio slot") color red
+    [#
+        if (CurrentReservedSlot != -1) {
+            h.releaseSlot(CurrentReservedSlot)
+            CurrentReservedSlot = -1
+        }
+        val holdStr = h.getHoldStateString()
+    #]
+    forward sonar  -m blinkLed : blinkLed(false)
+    forward ioport -m updateWorkingState : updateWorkingState("OUT_OF_SERVICE")
+    forward ioport -m updateHoldDisplay : updateHoldDisplay("OUT_OF_SERVICE", $holdStr, "Guasto sonar")
+}
+Goto outOfServiceWait
+
+State outOfServiceWait {
+    println("$name | Sistema BLOCCATO in Out of service") color red
+}
+Transition tOos 
+    whenMsg sonarrestored   -> onServiceRestored
+    whenRequest loadrequest -> rejectOutOfService
+
+State onServiceRestored {
+    println("$name | Sonar ripristinato: ritorno in IDLE") color magenta
+    [# val holdStr = h.getHoldStateString() #]
+    forward ioport -m updateWorkingState : updateWorkingState("WORKING")
+    forward ioport -m updateHoldDisplay : updateHoldDisplay("IDLE", $holdStr, "Service working")
+}
+Goto idle
+            </pre>
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Raffinamento dell'attore cargorobot: Sospensione e Ripresa Tratta</h3>
+        <p>
+            Per gestire il guasto telemetrico durante la movimentazione, cargorobot memorizza la tratta attiva (Leg) e le coordinate correnti di destinazione. Se sopraggiunge sonarfault, blocca RobotSmart26 con alarm e attende sonarrestored per riprendere la rotta interrotta:
+        </p>
+            <pre>
+QActor cargorobot context ctxcargoservice {
+    [#
+        var TargetSlot = -1
+        var TargetX = -1
+        var TargetY = -1
+        val StepTime = 345
+        var PendingTX = -1
+        var PendingTY = -1
+        var Leg = "" // "toIOPort" | "toSlot5" | "toReserved" | "toHome"
+    #]
+    withobj hold using "cargoservice.Hold()"
+
+    State idle initial {
+        println("$name | pronto in IDLE") color blue
+    }
+    Transition t0 whenRequest transportContainer -> prepareMoveToIOPort
+
+    State prepareMoveToIOPort {
+        onMsg(transportContainer : transportContainer(SLOT, TARGETX, TARGETY)) {
+            [#
+                TargetSlot = payloadArg(0).toInt()
+                TargetX    = payloadArg(1).toInt()
+                TargetY    = payloadArg(2).toInt()
+                val pos = hold.getIOPortPosition()
+                PendingTX = pos.x
+                PendingTY = pos.y
+                Leg = "toIOPort"
+            #]
+            request robotsmart -m moverobot : moverobot($PendingTX, $PendingTY, $StepTime)
+        }
+    }
+    Transition t1 
+        whenReply moverobotdone   -> atIOPort
+        whenReply moverobotfailed -> handleMoveFailed
+        whenMsg   sonarfault      -> onSonarFaultDuringMove
+
+    State atIOPort {
+        println("$name | A IOPort, prelievo carico") color blue
+    }
+    Transition t2 whenTime 1500 -> prepareMoveToSlot5
+
+    State prepareMoveToSlot5 {
+        [#
+            val pos = hold.getSlot5Position()
+            PendingTX = pos.x
+            PendingTY = pos.y
+            Leg = "toSlot5"
+        #]
+        request robotsmart -m moverobot : moverobot($PendingTX, $PendingTY, $StepTime)
+    }
+    Transition t3 
+        whenReply moverobotdone   -> atSlot5
+        whenReply moverobotfailed -> handleMoveFailed
+        whenMsg   sonarfault      -> onSonarFaultDuringMove
+
+    State atSlot5 {
+        println("$name | A Slot5: marcatura barcode...") color blue
+    }
+    Transition t4 whenTime 3000 -> prepareMoveToReserved
+
+    State prepareMoveToReserved {
+        [#
+            PendingTX = TargetX
+            PendingTY = TargetY
+            Leg = "toReserved"
+        #]
+        request robotsmart -m moverobot : moverobot($PendingTX, $PendingTY, $StepTime)
+    }
+    Transition t5 
+        whenReply moverobotdone   -> atReservedSlot
+        whenReply moverobotfailed -> handleMoveFailed
+        whenMsg   sonarfault      -> onSonarFaultDuringMove
+
+    State atReservedSlot {
+        println("$name | Container depositato nello slot $TargetSlot") color blue
+    }
+    Transition t6 whenTime 1500 -> prepareReturnHome
+
+    State prepareReturnHome {
+        [#
+            val pos = hold.getHomePosition()
+            PendingTX = pos.x
+            PendingTY = pos.y
+            Leg = "toHome"
+        #]
+        request robotsmart -m moverobot : moverobot($PendingTX, $PendingTY, $StepTime)
+    }
+    Transition t7 
+        whenReply moverobotdone   -> transportCompleted
+        whenReply moverobotfailed -> handleMoveFailed
+        whenMsg   sonarfault      -> onSonarFaultDuringMove
+
+    // --- Gestione Guasto e Sospensione Tratta ---
+    State onSonarFaultDuringMove {
+        println("$name | Guasto sonar durante tratta $Leg: ARRESTO ROBOT!") color red
+        emit alarm : alarm(sonarfault)
+    }
+    Transition tHalt whenMsg sonarrestored -> resumeNavigation
+
+    State resumeNavigation {
+        println("$name | Sonar ripristinato: ripresa tratta $Leg verso ($PendingTX, $PendingTY)") color yellow
+        request robotsmart -m moverobot : moverobot($PendingTX, $PendingTY, $StepTime)
+    }
+    Transition tResume 
+        whenReply moverobotdone   -> evaluateResumedLeg
+        whenReply moverobotfailed -> handleMoveFailed
+
+    State evaluateResumedLeg {
+        // Rientro nello stato operativo corrispondente alla tratta appena completata
+        Goto atIOPort       if [# Leg == "toIOPort" #]   else checkResumedSlot5
+    }
+    State checkResumedSlot5 {
+        Goto atSlot5        if [# Leg == "toSlot5" #]    else checkResumedReserved
+    }
+    State checkResumedReserved {
+        Goto atReservedSlot if [# Leg == "toReserved" #] else transportCompleted
+    }
+
+    State transportCompleted {
+        println("$name | Trasporto concluso regolarmente in HOME") color blue
+        replyTo transportContainer with transportDone : transportDone($TargetSlot)
+        [# TargetSlot = -1 #]
+    }
+    Goto idle
+
+    State handleMoveFailed {
+        println("$name | Fallimento irrecuperabile del movimento su RobotSmart26") color red
+        replyTo transportContainer with transportFailed : transportFailed(robotStuck)
+        [# TargetSlot = -1 #]
+    }
+    Goto idle
+}
+            </pre>
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Firmware MicroPython su Raspberry PicoW (sonarMqtt.py)</h3>
+        <p>
+            Il firmware rispetta il campionamento a cadenza di circa 1 secondo. Riceve i comandi di controllo del LED senza ricorrere a cicli bloccanti che ostacolerebbero il sensore:
+        </p>
+            <pre>
+import time
+import machine
+from umqtt_simple import MQTTClient
+import secrets
+
+# Pinout hardware su Raspberry PicoW
+TRIG_PIN = 16
+ECHO_PIN = 17
+LED_PIN = 15
+
+trigger = machine.Pin(TRIG_PIN, machine.Pin.OUT)
+echo = machine.Pin(ECHO_PIN, machine.Pin.IN)
+led = machine.Pin(LED_PIN, machine.Pin.OUT)
+
+TOPIC_DISTANCE = b"cargoservice/sonar/distance"
+TOPIC_LED = b"cargoservice/sonar/led"
+
+blink_active = False
+
+def on_message(topic, msg):
+    global blink_active
+    payload = msg.decode()
+    if "blinkLed(true)" in payload:
+        blink_active = True
+    elif "blinkLed(false)" in payload:
+        blink_active = False
+        led.value(0)
+
+def measure_distance():
+    trigger.low()
+    time.sleep_us(2)
+    trigger.high()
+    time.sleep_us(10)
+    trigger.low()
+    
+    timeout = 30000
+    start = time.ticks_us()
+    while echo.value() == 0:
+        if time.ticks_diff(time.ticks_us(), start) > timeout:
+            return None
+            
+    signal_off = time.ticks_us()
+    while echo.value() == 1:
+        if time.ticks_diff(time.ticks_us(), signal_off) > timeout:
+            return None
+            
+    signal_on = time.ticks_us()
+    time_passed = time.ticks_diff(signal_on, signal_off)
+    # Velocità del suono: 343 m/s -> 0.0343 cm/us
+    distance = (time_passed * 0.0343) / 2.0
+    return distance
+
+# Connessione WiFi e Broker MQTT
+def setup_mqtt():
+    client = MQTTClient(
+        client_id="sonarpico",
+        server=secrets.MQTT_BROKER_IP,
+        port=secrets.MQTT_PORT
+    )
+    client.set_callback(on_message)
+    client.connect()
+    client.subscribe(TOPIC_LED)
+    return client
+
+client = setup_mqtt()
+
+# Ciclo principale di campionamento (cadenza ~1s)
+while True:
+    try:
+        client.check_msg()
+        if blink_active:
+            led.toggle()
+            time.sleep(0.3)
+            
+        d = measure_distance()
+        if d is not None:
+            # Formattazione nel formato evento nativo IApplMessage di QAk
+            event_payload = "msg(sonarreading,event,picow,none,sonarreading(%d),0)" % round(d)
+            client.publish(TOPIC_DISTANCE, event_payload.encode())
+            
+        time.sleep(1.0)
+    except Exception as e:
+        print("Errore nel loop del sensore:", e)
+        time.sleep(1.0)
+            </pre>
+        </p>
+    </div>
+</div>
+
+<h2>Testing</h2> 
+<div class="remark">
+    <p>
+        
+    </p>
+</div> 
+
+<h2>Deployment</h2>
+<div class="remark">
+    <p>
+        Il deployment dello Sprint 3 concretizza l'architettura distribuita finale del sistema. Il prototipo completo è composto da tre nodi computazionali distinti (il sistema applicativo QAk su JVM, il simulatore WEnv con RobotSmart26, e il microcontrollore fisico Raspberry PicoW), coordinati attraverso il broker MQTT e la rete locale.
+    </p>
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Topologia dei Nodi e Mappatura delle Porte di Rete</h3>
+        <p>
+            <b>TABELLA PER DESY</b>
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Schema dell'Architettura di Rete e Flussi</h3>
+        <p>
+            +-------------------------------------------------------------+
+       |                     ctxrobotsmart:8020                      |
+       |  +-------------------------------------------------------+  |
+       |  |                      RobotSmart26                     |  |
+       |  +-------------------------------------------------------+  |
+       +------------------------------^------------------------------+
+                                      | moverobot / alarm (TCP)
++-------------------------------------v-------------------------------------+
+| ctxcargoservice:8120                                                      |
+|                                                                           |
+|   +--------------+      loadrequest      +--------------+                 |
+|   |    ioport    | <-------------------> | cargoservice |                 |
+|   +-------+------+                       +-------+------+                 |
+|           |                                      | transportContainer     |
+|           | ws                                   v                        |
+|           v                               +--------------+                |
+|   +--------------+                        |  cargorobot  |                |
+|   | IOPortWs     |                        +--------------+                |
+|   | Adapter:7070 |                               ^                        |
+|   +-------+------+                               |                        |
+|           |                                      | sonarfault             |
+|           v                                      | sonarrestored          |
+|    [ Browser GUI ]                        +------+-------+                |
+|                                           |    sonar     |                |
+|                                           +------^-------+                |
++--------------------------------------------------|------------------------+
+                                                   |
+                        cargoservice/sonar/distance| (eventTopic)
+                        cargoservice/sonar/led     | (publish)
+                                                   v
+                                     +---------------------------+
+                                     |    Broker MQTT (1883)     |
+                                     +-------------^-------------+
+                                                   |
+                                                   | WiFi (MQTT)
+                                                   v
+                                     +---------------------------+
+                                     |   Raspberry PicoW         |
+                                     |   [ HC-SR04 + LED ]       |
+                                     +---------------------------+
+        </p>
+    </div>
+</div>
+
+<h2>Definizione dello Sprint3</h2>
+<div class="remark">
+    <p>
+        
+    </p>
+</div>
+ 
+<h2>Maintenance</h2> 
+<div class="remark">
+    <p>
+        
+    </p>
+</div>
+
+<div style="background-color: rgba(86, 56, 253, 0.9); color: white; padding: 30px; font-family: sans-serif; margin-top: 50px; border-radius: 8px;">
+    
+    <!-- Titolo principale centrato -->
+    <div style="text-align: center; color: #ffffff; font-size: 1.3em; font-weight: bold;">
+        Team di Sviluppo
+    </div>
+    
+    <!-- Link unico alla Git Repository del Progetto -->
+    <div style="text-align: center; margin-top: 10px; margin-bottom: 30px;">
+        <a href="https://github.com/ariannabuffoni/TF2026.git" target="_blank" style="color: #ffff00; text-decoration: underline; font-size: 1em; font-weight: bold;">
+            💻 GitHub Project Repository
+        </a>
+    </div>
+    
+    <!-- Griglia dei partecipanti (ora mostra solo foto, nome ed email) -->
+    <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; text-align: center;">
+        
+        <!-- Partecipante 1 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_ari.jpg" alt="Foto Arianna" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Arianna Buffoni</div>
+            <div style="font-size: 0.9em; color: #ffffff;">arianna.buffoni@studio.unibo.it</div>
+        </div>
+
+        <!-- Partecipante 2 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_desy.jpeg" alt="Foto Desirée" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Desirée Pellegrini</div>
+            <div style="font-size: 0.9em; color: #ffffff;">desiree.pellegrini@studio.unibo.it</div>
+        </div>
+
+        <!-- Partecipante 3 -->
+        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+            <img src="./img/foto_gian.jpeg" alt="Foto Gianluca" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; margin-bottom: 10px;">
+            <div style="margin: 5px 0; color: #ffffff; font-size: 1.15em; font-weight: bold;">Gianluca Varisco</div>
+            <div style="font-size: 0.9em; color: #ffffff;">gianluca.varisco@studio.unibo.it</div>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>
