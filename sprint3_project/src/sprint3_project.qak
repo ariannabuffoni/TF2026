@@ -1,0 +1,795 @@
+System sprint3_project
+
+// Dichiarazione del broker MQTT per l'interfacciamento con il Raspberry PicoW
+mqttBroker "192.168.1.6" : 1883 eventTopic "mqttpicoTF26"
+
+// --- Comunicazione IOPort <-> CargoService (dallo Sprint 1) ---
+Request loadrequest         : loadrequest(IOPORT_STATE)
+Reply   retrylater          : retrylater(CAUSE, HOLD_STATE) for loadrequest
+Reply   reject              : reject(HOLD_STATE) for loadrequest
+Reply   engaged             : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+
+Dispatch updateHoldDisplay  : updateHoldDisplay(STATE, HOLD_STATE, MSG)
+Dispatch updateWorkingState : updateWorkingState(STATE)
+Dispatch button_pushed      : button_pushed(X)
+
+// Rimossi i vecchi dispatch mock del sensore/errore e sostituiti con i messaggi telemetrici e di allarme dello Sprint 3
+Event   sonarreading        : sonarreading(D)
+Dispatch sonarcontainer     : sonarcontainer(DISTANCE)
+Dispatch sonarfault         : sonarfault(CAUSE)
+Dispatch sonarrestored      : sonarrestored(NONE)
+Dispatch blinkLed           : blinkLed(FLAG)
+Event   alarm               : alarm(X)
+
+// Gestione occupazione IoPort
+Dispatch updateioport 		: updateioport(STATE_IOPORT)
+
+// --- Comunicazione CargoService <-> CargoRobot ---
+Request  transportContainer : transportContainer(SLOT, TARGETX, TARGETY)
+Reply    transportDone      : transportDone(SLOT) for transportContainer
+Reply    transportFailed    : transportFailed(CAUSE) for transportContainer
+
+// --- Interfaccia nativa verso RobotSmart26 ---
+Request  moverobot          : moverobot(TARGETX, TARGETY, STEPTIME)
+Reply    moverobotdone      : moverobotok(ARG) for moverobot
+Reply    moverobotfailed    : moverobotfailed(PLANDONE, PLANTODO) for moverobot
+
+Request  tuneAtHome         : tuneAtHome(X)   "reposition in home X don't care"
+Reply    tuneDone           : tuneDone(X) for tuneAtHome
+
+Dispatch setrobotstate      : setpos(X,Y,D)   "set robot position to (X,Y) direction D=up|down|left|right"
+Dispatch setplanbuildelay   : value(V)        "parameter = V >= 0"
+
+Request getrobotstate : getrobotstate(ARG)
+Reply   robotstate    : robotstate(POS,DIR) for getrobotstate
+
+// --- Contesti di Esecuzione ---
+Context ctxcargoservice ip [host="localhost" port=8120]
+Context ctxrobotsmart   ip [host="127.0.0.1" port=8020]
+
+ExternalQActor robotsmart context ctxrobotsmart
+
+
+// ---------------- Attore SONAR (Filtro Temporale e Gateway MQTT) -----------------------------------------------------------
+QActor sonar context ctxcargoservice {
+    [#
+        val DFREE = 20
+        var Dist = 0.0
+        var Occupied = false
+        var Faulted = false
+        var TOContainer = 0L
+        var TOFault = 0L
+        val WINDOW = 3000L
+    #]
+    State s0 initial {
+        println("$name | pronto in ascolto degli eventi sonar via MQTT") color blue
+    }
+    Goto idle
+
+    State idle {
+    }
+    Transition t0
+        whenEvent sonarreading -> onReading
+        whenMsg   blinkLed     -> onBlink
+
+    State onReading {
+    	onMsg(sonarreading : sonarreading(D)) {
+        	[#
+	            Dist = payloadArg(0).toDouble()
+            	val now = System.currentTimeMillis()
+	            
+    	        // Valutazione occupazione IOPort (D < DFREE/2)
+            	val IsOcc = Dist < (DFREE / 2.0)
+        	#]
+	        // Inoltra lo stato aggiornato all'attore ioport
+    	    forward ioport -m updateioport : updateioport($IsOcc)
+        	[#
+            	// 1. Logica Finestra Convalida Container (D < DFREE/2 per >= 3s)
+            	if (IsOcc) {
+	                if (TOContainer == 0L) TOContainer = now
+                	if (!Occupied && (now - TOContainer) >= WINDOW) {
+	                    Occupied = true
+                    	#]
+                    	println("$name | Container confermato a D=$Dist cm per >= 3s") color blue
+	                    forward cargoservice -m sonarcontainer : sonarcontainer($Dist)
+                    	[#
+                	}
+            	} else {
+	                TOContainer = 0L
+                	if (Occupied && !IsOcc) {
+	                    Occupied = false
+                    	#]
+                    	println("$name | Container rimosso dall'area sensore") color blue
+                    	[#
+                	}
+            	}
+	            
+	            // 2. Logica Finestra Convalida Guasto Sonar (D > DFREE per >= 3s)
+            	if (Dist > DFREE) {
+	                if (TOFault == 0L) TOFault = now
+                	if (!Faulted && (now - TOFault) >= WINDOW) {
+	                    Faulted = true
+    	                #]
+                    	println("$name | GUASTO RILEVATO: D=$Dist cm per >= 3s") color red
+                    	forward cargoservice -m sonarfault : sonarfault(sonarOutOfRange)
+                    	forward cargorobot    -m sonarfault : sonarfault(sonarOutOfRange)
+                    	[#
+                	}
+            	} else {
+	                TOFault = 0L
+                	if (Faulted) {
+	                    Faulted = false
+                    	#]
+                    	println("$name | Sonar ripristinato entro i parametri normali") color blue
+                    	forward cargoservice -m sonarrestored : sonarrestored(NONE)
+                    	forward cargorobot    -m sonarrestored : sonarrestored(NONE)
+                    	[#
+                	}
+            	}
+        	#]
+    	}
+	}
+	Goto idle 
+	
+    State onBlink {
+        onMsg(blinkLed : blinkLed(FLAG)) {
+            [#
+                val flag = payloadArg(0)
+                // Stringa formattata correttamente secondo lo standard QAk per MQTT
+                val mqttMsg = "msg(blinkLed,dispatch,sonar,picow,blinkLed($flag),1)"
+                mqtt.publish("mqttledTF26", mqttMsg)
+            #]
+            println("$name | Comando LED ($flag) inoltrato a PicoW via MQTT") color blue
+        }
+    }
+    Goto idle
+}
+
+
+// ---------------- Attore CARGOROBOT con recupero in caso di guasto -----------------------------------------------------------
+QActor cargorobot context ctxcargoservice 
+	withobj h using "cargoservice.Hold()"{
+    [#
+        var Slot     = 0
+        var X        = 0      // coordinate dello slot finale 
+        var Y        = 0
+        var StepTime = 335
+
+        val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
+
+        var Failed       = false         // true se una tappa fallisce
+        var FailCause    = "fail_RobotSmart26"
+        var HomeAttempts = 0
+        var NearHome     = false         // true se manca solo l'ultimo passo per casa
+        
+        // AGGIUNTO: Variabili di stato per la memorizzazione della tratta in caso di allarme sonar
+        var PendingX     = 0
+        var PendingY     = 0
+        var CurrentLeg   = ""
+        
+        var LegDone      = false
+    #]
+
+    State s0 initial {
+    	[#
+    		var XHOME = h.getHomeX()
+    		var YHOME = h.getHomeY()
+    	#]
+        println("$name | starting: mind set at HOME (robot assumed physically at HOME, facing down)") color blue
+        forward robotsmart -m setplanbuildelay : value(0)
+        forward robotsmart -m setrobotstate : setpos($XHOME,$YHOME,down)
+        delay 1000
+    }
+    Goto idle
+
+    State idle {
+        println("$name | waiting for a container...") color blue
+    }
+    Transition t0
+        whenRequest transportContainer -> extractRequest
+
+    State extractRequest {
+        onMsg (transportContainer : transportContainer(SLOT, TARGETX, TARGETY)) {
+            [#
+                Slot         = payloadArg(0).toInt()
+                X            = payloadArg(1).toInt()
+                Y            = payloadArg(2).toInt()
+                Failed       = false
+                FailCause    = "fail_RobotSmart26"
+                HomeAttempts = 0
+            #]
+        }
+    }
+    Goto moveIOPort
+
+    // --- 1. HOME -> IOPort ---
+    State moveIOPort {
+    	[#
+    		var XIOP = h.getIOPortX()
+    		var YIOP = h.getIOPortY()
+    		// AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
+    		PendingX = XIOP
+    		PendingY = YIOP
+    		CurrentLeg = "toIOPort"
+    	#]
+        println("$name | moving to IOPort ($XIOP, $YIOP)") color blue
+        request robotsmart -m moverobot : moverobot($XIOP, $YIOP, $StepTime)
+    }
+    Transition t1
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> collectContainer
+        whenReply moverobotfailed -> legFailed
+        // AGGIUNTA: Gestione interruzione per guasto sonar durante il movimento
+        whenMsg sonarfault        -> onSonarFaultDuringMove
+
+    State collectContainer {
+        println("$name | collecting container...") color blue
+        delay 2000 
+    }
+    Goto moveSlot5
+
+    // --- 2. IOPort -> slot5 ---
+    State moveSlot5 {
+    	[#
+    		var X5 = h.getMarkerX()
+    		var Y5 = h.getMarkerY()
+    		// AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
+    		PendingX = X5
+    		PendingY = Y5
+    		CurrentLeg = "toSlot5"
+    	#]
+        println("$name | moving to slot5 ($X5, $Y5)") color blue
+        request robotsmart -m moverobot : moverobot($X5, $Y5, $StepTime)
+    }
+    Transition t2
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> marking
+        whenReply moverobotfailed -> legFailed
+        // AGGIUNTA: Gestione interruzione per guasto sonar durante il movimento
+        whenMsg sonarfault        -> onSonarFaultDuringMove
+        
+    State marking {
+        println("$name | marker working...") color blue
+    }
+    Transition t3
+        whenTime 5000 -> moveFinalSlot
+
+    // --- 3. slot5 -> slot finale ---
+    State moveFinalSlot {
+        [#
+            // AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
+            PendingX = X
+            PendingY = Y
+            CurrentLeg = "toFinalSlot"
+        #]
+        println("$name | moving to final slot ($X, $Y)") color blue
+        request robotsmart -m moverobot : moverobot($X, $Y, $StepTime)
+    }
+    Transition t4
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> depositContainer
+        whenReply moverobotfailed -> legFailed
+        // AGGIUNTA: Gestione interruzione per guasto sonar durante il movimento
+        whenMsg sonarfault        -> onSonarFaultDuringMove
+        
+    State depositContainer {
+        println("$name | depositing container...") color blue
+        delay 2000 
+    }
+    Goto startHoming
+        
+    // --- Gestione fallimento di una tappa ---
+    State legFailed {
+        onMsg (moverobotfailed : moverobotfailed(PLANDONE, PLANTODO)) {
+            println("$name | tappa fallita! PLANDONE=${payloadArg(0)} PLANTODO=${payloadArg(1)}") color red
+        }
+        [# Failed = true #]
+    }
+    Goto startHoming
+
+    State moveTimeout {
+        println("$name | nessuna risposta da robotsmart entro 30s") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    // --- 4. Rientro in HOME ---
+    State startHoming {
+        [# HomeAttempts = 0 #]
+    }
+    Goto goHome
+
+    State goHome {
+    	[#
+    		HomeAttempts++
+    		var XHOME = h.getHomeX()
+    		var YHOME = h.getHomeY()
+    		//AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
+    		PendingX = XHOME
+    		PendingY = YHOME
+    		CurrentLeg = "toHome"
+    	#]
+        println("$name | going back home (tentativo $HomeAttempts di $MaxHomeAttempts)") color blue
+        request robotsmart -m moverobot : moverobot($XHOME, $YHOME, $StepTime)
+    }
+    Transition t5
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> tuneHome
+        whenReply moverobotfailed -> homeMoveFailed
+        // AGGIUNTA: Gestione interruzione per guasto sonar durante il movimento
+        whenMsg sonarfault        -> onSonarFaultDuringMove
+        
+    State homeMoveFailed {
+        onMsg (moverobotfailed : moverobotfailed(PLANDONE, PLANTODO)) {
+            [#
+                val Todo = payloadArg(1).filter { c -> c.isLetter() }
+                NearHome = (Todo == "w" || Todo == "")
+            #]
+            println("$name | rientro in HOME fallito: PLANDONE=${payloadArg(0)} PLANTODO=${payloadArg(1)} -> quasi a casa: $NearHome") color red
+        }
+    }
+    Goto tuneHome if [# NearHome #] else retryHome
+
+    State retryHome {
+        println("$name | lontano da HOME, ritento il rientro") color magenta
+    }
+    Goto goHome if [# HomeAttempts < MaxHomeAttempts #] else homeGiveUp
+
+    State homeGiveUp {
+        println("$name | impossibile rientrare in HOME dopo $MaxHomeAttempts tentativi") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    // --- Allineamento in HOME ---
+    State tuneHome {
+        println("$name | tuning at home...") color blue
+        request robotsmart -m tuneAtHome : tuneAtHome(end)
+    }
+    Transition t6
+        whenTime 20000     -> tuneTimeout
+        whenReply tuneDone -> endHoming
+        
+    State tuneTimeout {
+        println("$name | tune NON terminato entro 20s") color red
+        [# Failed = true #]
+    }
+    Goto finishKo
+
+    State endHoming {
+        println("$name | tune completato, robot riallineato in HOME") color blue
+        forward robotsmart -m setrobotstate : setpos(0,0,down)
+        delay 300
+    }
+    Goto finishKo if [# Failed #] else finishOk
+
+    State finishOk {
+        println("$name | trasporto finito con successo") color blue
+        replyTo transportContainer with transportDone : transportDone($Slot)
+    }
+    Goto idle
+
+    State finishKo {
+        println("$name | trasporto fallito ($FailCause)") color red
+        replyTo transportContainer with transportFailed : transportFailed($FailCause)
+    }
+    Goto idle
+
+    State onSonarFaultDuringMove {
+        println("$name | Guasto sonar durante la tratta $CurrentLeg: ARRESTO ROBOT!") color red
+        [#
+            LegDone = false
+            mqtt.publish("robotsmart26in", "msg(alarm,event,cargorobot,none,alarm(sonarfault),0)")
+        #]
+        emit alarm : alarm(sonarfault)
+    }
+    Transition tHalt
+        whenReply moverobotfailed -> robotStopped
+        whenReply moverobotdone   -> robotStoppedLegDone
+
+    State robotStoppedLegDone {
+        [# LegDone = true #]
+    }
+    Goto robotStopped
+
+    State robotStopped {
+        println("$name | Robot fermo (tratta $CurrentLeg), attendo sonarrestored") color red
+    }
+    Transition tWaitRestore
+        whenMsg sonarrestored -> resumeNavigation
+
+    State resumeNavigation {
+        println("$name | Sonar ripristinato: ripresa della tratta $CurrentLeg verso ($PendingX, $PendingY)") color yellow
+    }
+    Goto evaluateResumedLeg if [# LegDone #] else doResume
+
+    State doResume {
+        request robotsmart -m moverobot : moverobot($PendingX, $PendingY, $StepTime)
+    }
+    Transition tResume
+        whenTime 30000            -> moveTimeout
+        whenReply moverobotdone   -> evaluateResumedLeg
+        whenReply moverobotfailed -> legFailed
+
+    // Tratta completata: si passa al passo SUCCESSIVO, non si rifà la tratta
+    State evaluateResumedLeg {
+        [# LegDone = false #]
+        println("$name | Tratta $CurrentLeg completata, proseguo") color blue
+    }
+    Goto collectContainer if [# CurrentLeg == "toIOPort" #] else checkSlot5
+
+    State checkSlot5 { }
+    Goto marking if [# CurrentLeg == "toSlot5" #] else checkFinalSlot
+
+    State checkFinalSlot { }
+    Goto depositContainer if [# CurrentLeg == "toFinalSlot" #] else tuneHome
+}
+
+// ---------------- Attore CARGOSERVICE -----------------------------------------------------------
+QActor cargoservice context ctxcargoservice
+    withobj h using "cargoservice.Hold()" {
+    [#
+        var CurrentReservedSlot = -1
+        var CurrentState        = "IDLE"
+        var IsOutOfService      = false
+        var Transporting        = false     
+        var OosMsg              = "'Guasto'"
+        var WaitStartTime       = 0L
+        var RemainingTime       = 30000L
+        var RobotFault = false
+    #]
+
+    State s0 initial {
+        delay 1000
+        println("$name | avvio CargoService Core") color magenta
+        [#
+            var ServiceWorking = "'WORKING'"
+            var InitState = "'IDLE'"
+            var InitMsg = "'Service working'"
+            var InitHold = h.getHoldStateString()
+        #]
+        forward ioport -m updateWorkingState : updateWorkingState($ServiceWorking)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($InitState, $InitHold, $InitMsg)
+    	forward sonar -m blinkLed : blinkLed(false)
+    }
+    Goto idle
+
+    State idle {
+        [#
+            CurrentState    = "IDLE"
+            Transporting    = false
+            WaitStartTime   = 0L
+            RemainingTime   = 30000L
+        #]
+        println("$name | Sistema in stato IDLE") color magenta
+    }
+    Transition t0
+        whenRequest loadrequest -> handleLoadRequest
+        whenMsg sonarfault      -> handleOutOfService
+
+    State handleLoadRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [#
+                var IoportState = payloadArg(0).toBoolean()
+                var CurrentHoldState = h.getHoldStateString()
+
+                if (IoportState) {
+                    var SystemBusyStr = "'ioport_occupied'"
+                    #]
+                    replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
+                    println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta
+                    [#
+                } else if (h.isFull()) {
+                    #]
+                    replyTo loadrequest with reject : reject($CurrentHoldState)
+                    println("$name | reject($CurrentHoldState)") color magenta
+                    [#
+                } else {
+                    CurrentReservedSlot = h.reserveNextFreeSlot()
+                    if (CurrentReservedSlot != -1) {
+                        CurrentState = "ENGAGED"
+                        CurrentHoldState = h.getHoldStateString()
+                        #]
+                        replyTo loadrequest with engaged : engaged($CurrentReservedSlot, $CurrentHoldState)
+                        println("$name | engaged($CurrentReservedSlot, $CurrentHoldState)") color magenta
+                        // MODIFICATO: Comando LED gestito tramite l'attore sonar (via MQTT al PicoW)
+                        forward sonar -m blinkLed : blinkLed(true)
+                        [#
+                    } else {
+                        var SystemBusyStr = "'system_busy'"
+                        #]
+                        replyTo loadrequest with retrylater : retrylater($SystemBusyStr, $CurrentHoldState)
+                        println("$name | retrylater($SystemBusyStr, $CurrentHoldState)") color magenta
+                        [#
+                    }
+                }
+            #]
+        }
+    }
+    Goto engagedWaitContainer if [# CurrentState == "ENGAGED" #] else idle
+
+    // --- Attesa del container nell'area del sensore (max 30s) ---
+    State engagedWaitContainer {
+        [#
+            if (WaitStartTime == 0L) {
+                WaitStartTime = System.currentTimeMillis()
+            }
+            var Elapsed = System.currentTimeMillis() - WaitStartTime
+            RemainingTime = 30000L - Elapsed
+            if (RemainingTime <= 0L) RemainingTime = 1L
+        #]
+        println("$name | In attesa del container (Tempo residuo: ${RemainingTime}ms)...") color magenta
+    }
+    Transition t1
+        whenTimeVar RemainingTime -> handleTimeout
+        whenRequest loadrequest   -> handleBusyRequest
+        whenMsg sonarcontainer    -> handleContainer
+        whenMsg sonarfault        -> handleOutOfService
+
+    State handleBusyRequest {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [#
+                var CurrentHoldState = h.getHoldStateString()
+                var BusyStr = if (IsOutOfService) "'out_of_service'" else "'system_engaged'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($BusyStr, $CurrentHoldState)
+            println("$name | retrylater($BusyStr, $CurrentHoldState)") color magenta
+        }
+    }
+    Goto waitTransport if [# Transporting #] else engagedWaitContainer
+
+    State handleTimeout {
+        println("$name | TIMEOUT scaduto! Container non rilevato entro 30s.") color magenta
+        [#
+            if (CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'DISENGAGED'"
+            var TimeoutMsgStr = "'Timer scaduto (30s)'"
+        #]
+        // MODIFICATO: Spegne il LED tramite l'attore sonar allo scadere del timeout
+        forward sonar -m blinkLed : blinkLed(false)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $TimeoutMsgStr)
+    }
+    Goto idle
+
+    // --- Container rilevato: parte il trasporto ---
+    State handleContainer {
+        println("$name | Container rilevato -> movimento robot") color magenta
+        [#
+            Transporting = true
+            var TargetX = h.getEntranceX(CurrentReservedSlot)
+            var TargetY = h.getEntranceY(CurrentReservedSlot)
+        #]
+        request cargorobot -m transportContainer : transportContainer($CurrentReservedSlot, $TargetX, $TargetY)
+    }
+    Goto waitTransport
+
+    State waitTransport {
+        println("$name | In attesa della fine del trasporto...") color magenta
+    }
+    Transition t2
+        whenReply transportDone   -> endTransport
+        whenReply transportFailed -> handleOutOfService
+        whenRequest loadrequest   -> handleBusyRequest
+        whenMsg sonarfault        -> faultWhileTransporting
+        whenMsg sonarrestored     -> restoredWhileTransporting
+
+	State faultWhileTransporting {
+        println("$name | Guasto sonar durante il trasporto: aspetto la fine del robot") color magenta
+        [#
+            IsOutOfService = true
+            var StateStr = "'OUT_OF_SERVICE'"
+            var FaultMsgStr = "'Guasto sonar'"
+            var CurrentHoldState = h.getHoldStateString()
+        #]
+        forward sonar -m blinkLed : blinkLed(false)
+        forward ioport -m updateWorkingState : updateWorkingState($StateStr)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $FaultMsgStr)
+    }
+    Goto waitTransport
+
+    State restoredWhileTransporting {
+        println("$name | Sonar ripristinato durante il trasporto") color magenta
+        [#
+            IsOutOfService = false
+            var WorkingStateStr = "'WORKING'"
+            var StateStr = "'ENGAGED'"
+            var WorkingMsgStr = "'Service working'"
+            var CurrentHoldState = h.getHoldStateString()
+        #]
+        forward sonar -m blinkLed : blinkLed(true)
+        forward ioport -m updateWorkingState : updateWorkingState($WorkingStateStr)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $WorkingMsgStr)
+    }
+    Goto waitTransport
+
+    State endTransport {
+        println("$name | Container portato nello slot definito") color magenta
+        [#
+            h.setSlotOccupied(CurrentReservedSlot)
+            CurrentReservedSlot = -1
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'LOADED'"
+            var LoadedMsgStr = "'Container preso in carico'"
+        #]
+        // MODIFICATO: Spegne il LED tramite l'attore sonar a fine trasporto
+        forward sonar -m blinkLed : blinkLed(false)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $LoadedMsgStr)
+        delay 1500
+    }
+    Goto outOfServiceState if [# IsOutOfService #] else idle
+
+    // --- Out of service: guasto sensore o guasto robot ---
+    State handleOutOfService {
+        println("$name | GUASTO RILEVATO: Sistema in Out Of Service") color magenta
+        onMsg(sonarfault : sonarfault(CAUSE)) {
+            [# OosMsg = "'Guasto sonar'" #]
+        }
+        onMsg(transportFailed : transportFailed(CAUSE)) {
+            [# 
+            	OosMsg = "'Guasto robot'"
+            	RobotFault = true 
+            #]
+        }
+        [#
+            IsOutOfService = true
+
+            if (!Transporting && CurrentReservedSlot != -1) {
+                h.releaseSlot(CurrentReservedSlot)
+                CurrentReservedSlot = -1
+            }
+
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'OUT_OF_SERVICE'"
+        #]
+        // MODIFICATO: Spegne il lampeggio del LED via sonar in caso di guasto
+        forward sonar -m blinkLed : blinkLed(false)
+        forward ioport -m updateWorkingState : updateWorkingState($StateStr)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $OosMsg)
+    }
+    Goto outOfServiceState
+
+    State outOfServiceState {
+        println("$name | Sistema BLOCCATO: Out Of Service") color magenta
+    	forward sonar -m blinkLed : blinkLed(false)
+    }
+    Transition t3
+        whenRequest loadrequest -> handleRejectOutOfService
+        whenMsg sonarrestored   -> checkRestore
+
+	State checkRestore { }
+    Goto handleServiceRestored if [# !RobotFault #] else outOfServiceState
+
+   State handleServiceRestored {
+        println("$name | Sonar ripristinato: ritorno in IDLE") color magenta
+        [#
+            IsOutOfService = false
+            var CurrentHoldState = h.getHoldStateString()
+            var StateStr = "'IDLE'"
+            var WorkingMsgStr = "'Service working'"
+            var WorkingStateStr = "'WORKING'"
+        #]
+        forward ioport -m updateWorkingState : updateWorkingState($WorkingStateStr)
+        forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $WorkingMsgStr)
+    }
+    Goto idle
+
+    State handleRejectOutOfService {
+        onMsg(loadrequest : loadrequest(IOPORT_STATE)) {
+            [#
+                var CurrentHoldState = h.getHoldStateString()
+                var CauseStr = "'out_of_service'"
+            #]
+            replyTo loadrequest with retrylater : retrylater($CauseStr, $CurrentHoldState)
+        }
+    }
+    Goto outOfServiceState
+}
+
+
+// ---------------- Attore IOPORT (Senza gestione LED locale) -----------------------------------------------------------
+QActor ioport context ctxcargoservice {
+   [# 
+        var SensorOccupied = false 
+        lateinit var Adapter: ioport.IOPortWsAdapter
+    #]
+    
+    State s0 initial {
+        println("$name | avvio attore IOPort") color blue
+        [# Adapter = ioport.IOPortWsAdapter(myself, 7070) #]
+    }
+    Goto acceptEvents
+
+    State acceptEvents {
+        println("$name | in attesa di eventi...") color blue
+    }
+    Transition t0 
+        whenMsg button_pushed       -> handleButton
+        whenMsg updateHoldDisplay   -> handleCoreHoldUpdate
+        whenMsg updateWorkingState  -> handleCoreWorkingState
+        whenMsg updateioport        -> handleIopState
+
+    State handleIopState {
+        onMsg(updateioport : updateioport(OCCUPIED)) {
+            [# 
+                var newOccupied = payloadArg(0).toBoolean()
+                if (SensorOccupied != newOccupied) {
+                    SensorOccupied = newOccupied
+                    Adapter.updateSensorState(SensorOccupied)
+                }
+            #]
+            println("$name | Stato sensore IOPort aggiornato -> SensorOccupied = $SensorOccupied") color blue
+        }
+    }
+    Goto acceptEvents
+
+    State handleButton {
+        println("$name | Pressione pulsante ricevuta dalla GUI") color blue
+        [# var IoportStateStr = if (SensorOccupied) "true" else "false" #]
+        request cargoservice -m loadrequest : loadrequest($IoportStateStr)
+    }
+    Transition t1 
+        whenReply engaged    -> handleEngaged
+        whenReply reject     -> handleReject
+        whenReply retrylater -> handleRetryLater
+
+    State handleEngaged {
+        onMsg(engaged : engaged(RESERVED_SLOT, HOLD_STATE)) {
+            [# 
+                var ReservedSlot = payloadArg(0)
+                var HoldState = payloadArg(1)
+                var StateStr = "'ENGAGED'"
+                var MsgStr = "'Slot " + ReservedSlot + " Riservato'"
+                Adapter.updateHoldStatus(StateStr, HoldState, MsgStr)
+            #]
+            println("$name | Risposta engaged da parte di cargoservice: $StateStr, $HoldState, $MsgStr") color blue
+        }
+    }
+    Goto acceptEvents
+
+    State handleReject {
+        onMsg(reject : reject(HOLD_STATE)) {
+            [# 
+                var HoldState = payloadArg(0) 
+                var StateStr = "'REJECTED'"
+                var MsgStr = "'stiva piena'"
+                Adapter.updateHoldStatus(StateStr, HoldState, MsgStr)
+            #]
+            println("$name | Risposta reject da parte di cargoservice: $StateStr, $HoldState, $MsgStr") color blue
+        }
+    }
+    Goto acceptEvents
+
+    State handleRetryLater {
+        onMsg(retrylater : retrylater(CAUSE, HOLD_STATE)) {
+            [# 
+                var Cause = payloadArg(0)
+                var HoldState = payloadArg(1)
+                var StateStr = "'RETRY LATER'"
+                var CauseStr = "'" + Cause + "'"
+                Adapter.updateHoldStatus(StateStr, HoldState, CauseStr)
+            #]
+            println("$name | Risposta retrylater da parte di cargoservice: $StateStr, $HoldState, $CauseStr") color blue
+        }
+    }
+    Goto acceptEvents
+	
+    State handleCoreHoldUpdate {
+        onMsg(updateHoldDisplay : updateHoldDisplay(STATE, HOLD_STATE, MSG)) {
+            [# Adapter.updateHoldStatus(payloadArg(0), payloadArg(1), payloadArg(2)) #]
+            println("$name | Richiesto aggiornamento del display") color blue
+        }
+    }
+    Goto acceptEvents
+
+   State handleCoreWorkingState {
+        onMsg(updateWorkingState : updateWorkingState(STATE)) {
+            [# Adapter.updateWorkingState(payloadArg(0)) #]
+            println("$name | Richiesto aggiornamento del working state") color blue
+        }
+    }
+    Goto acceptEvents
+}

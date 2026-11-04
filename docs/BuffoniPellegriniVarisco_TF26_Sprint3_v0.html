@@ -184,7 +184,7 @@ containers and a slot named <b>slot5</b>.
                 <li>
                     Supporto Nativo QAk a livello di System (Scelta Adottata): Il metamodello QAk permette di dichiarare a livello di sistema un broker MQTT con la direttiva:
                     <pre>
-mqttBroker "IP_BROKER" port 1883 eventTopic "cargoservice/sonar/distance"
+mqttBroker "IP_BROKER" : 1883 eventTopic "mqttpicoTF26"
                     </pre>
                     In questo modo, qualsiasi evento pubblicato su tale topic nel formato standard msg(...) viene intercettato direttamente dal runtime QAk e consegnato come Event sonarreading : sonarreading(D) a chiunque possieda una transizione whenEvent sonarreading.
                 </li>

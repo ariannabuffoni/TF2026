@@ -1,0 +1,140 @@
+System sprint3_problem
+
+// Broker MQTT dichiarato per ricevere i dati telemetrici simulati dal PicoW
+mqttBroker "192.168.1.8" : 1883 eventTopic "mqttpicoTF26"
+
+// --- 1. Definizione di tutti i Messaggi dello Sprint 3 ---
+Event sonarreading    : sonarreading(D)          // Lettura istantanea grezza (dal PicoW)
+Dispatch sonarcontainer : sonarcontainer(DISTANCE) // Presenza container confermata (>= 3s)
+Dispatch sonarfault     : sonarfault(CAUSE)        // Guasto sonar confermato (D > DFREE per >= 3s)
+Dispatch sonarrestored  : sonarrestored(NONE)      // Rientro nei parametri normali del sonar
+Dispatch blinkLed       : blinkLed(FLAG)           // Comando controllo LED (true/false)
+Event alarm             : alarm(X)                 // Segnale di emergenza per bloccare il robot
+
+// Messaggi ereditati dai precedenti sprint per continuità di flusso
+Request loadrequest         : loadrequest(IOPORT_STATE)
+Reply   engaged             : engaged(RESERVED_SLOT, HOLD_STATE) for loadrequest
+Request  transportContainer : transportContainer(SLOT, TARGETX, TARGETY)
+Reply    transportDone      : transportDone(SLOT) for transportContainer
+
+// --- Interfaccia nativa verso RobotSmart26 ---
+Request  moverobot          : moverobot(TARGETX, TARGETY, STEPTIME)
+Reply    moverobotdone      : moverobotok(ARG) for moverobot
+Reply    moverobotfailed    : moverobotfailed(PLANDONE, PLANTODO) for moverobot
+
+// --- Context ---
+Context ctxcargoservice ip [host="localhost" port=8120]
+
+
+// --- 2. Attore Sonar (Analisi del filtraggio telemetrico) ---
+QActor sonar_analyst context ctxcargoservice {
+    State s0 initial {
+        println("$name | Analisi - Sonar in ascolto eventi telemetrici") color blue
+        // connessione al broker e iscrizione al canale gestita dal sistema
+    }
+    Goto idle
+
+    State idle {
+        println("$name | in attesa di campionamenti...") color blue
+    }
+    Transition t0
+        whenEvent sonarreading -> evaluateReading
+        whenMsg   blinkLed     -> handleBlinkCommand
+
+    State evaluateReading {
+        onMsg(sonarreading : sonarreading(D)) {
+            [# val d = payloadArg(0).toDouble() #]
+            println("$name | ricezione campionamento D = $d cm") color blue
+        }
+        // Nota di analisi: l'attore applicherà qui il controllo temporale (finestra di 3s)
+        // per discriminare un container stabile o un guasto, emettendo rispettivamente
+        // 'sonarcontainer' o 'sonarfault' verso il cargoservice.
+    }
+    Goto idle
+
+    State handleBlinkCommand {
+        onMsg(blinkLed : blinkLed(FLAG)) {
+            [# val flag = payloadArg(0) #]
+            println("$name | ricezione comando LED ($flag) da inoltrare al dispositivo") color yellow
+            // verrà inoltrato il messaggio al Pico (trami Mqtt) per far lampeggiare o smettere il led
+        }
+    }
+    Goto idle
+}
+
+
+// --- 3. Attore CargoService (Analisi reazione a container e guasti) ---
+QActor cargoservice_analyst context ctxcargoservice {
+    State s0 initial {
+        println("$name | Analisi - CargoService core in ascolto") color magenta
+    }
+    Goto idle
+
+    State idle {
+        println("$name | in attesa di eventi dal sonar o richieste utente...") color magenta
+    }
+    Transition t0
+        whenMsg sonarcontainer -> handleContainerConfirmed
+        whenMsg sonarfault     -> handleSystemFault
+
+    State handleContainerConfirmed {
+        println("$name | container validato dal sonar -> il servizio avvia la missione") color magenta
+    }
+    Goto idle
+
+    State handleSystemFault {
+        println("$name | anomalia telemetrica confermata -> blocco in Out of Service") color red
+    }
+    Transition t1
+        whenMsg sonarrestored -> handleSystemRestored
+
+    State handleSystemRestored {
+        println("$name | sonar ripristinato -> ritorno alla normalità") color green
+    }
+    Goto idle
+}
+
+
+// --- 4. Attore CargoRobot (Analisi gestione sicurezza in movimento) ---
+// --- Analisi dell'attore CargoRobot (Gestione sicurezza in movimento) ---
+QActor cargorobot_analyst context ctxcargoservice {
+    State s0 initial {
+        println("$name | Analisi - CargoRobot pronto") color blue
+    }
+    Goto idle
+
+    State idle {
+        println("$name | in attesa di richieste di trasporto...") color blue
+    }
+    Transition t0
+        whenRequest transportContainer -> moving
+
+    State moving {
+        println("$name | robot in movimento lungo la tratta nella stiva...") color blue
+        // Invia la richiesta di movimento 'moverobot' a RobotSmart26
+    }
+    Transition t1
+        // Se giunge la risposta di successo corretta da RobotSmart26
+        whenReply moverobotdone  -> evaluateCompletedLeg
+        // Se si verifica un guasto sonar durante la marcia, scatta la transizione di sicurezza
+        whenMsg   sonarfault   -> handleFaultDuringMove
+
+    State evaluateCompletedLeg {
+        println("$name | tratta completata con successo tramite moverobotok") color blue
+        // Qui l'analista modella il completamento o il passaggio alla tratta successiva
+    }
+    Goto idle
+
+    State handleFaultDuringMove {
+        println("$name | guasto sonar in marcia: emissione evento alarm per bloccare RobotSmart26") color red
+        emit alarm : alarm(sonarfault)
+    }
+    Transition t2
+        // Il robot attende che il sonar torni nei parametri prima di riprendere la rotta
+        whenMsg sonarrestored -> resumeNavigation
+
+    State resumeNavigation {
+        println("$name | sonar ripristinato: ripresa della navigazione interrotta") color green
+    }
+    Goto moving
+}
