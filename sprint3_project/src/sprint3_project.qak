@@ -1,7 +1,7 @@
 System sprint3_project
 
 // Dichiarazione del broker MQTT per l'interfacciamento con il Raspberry PicoW
-mqttBroker "192.168.1.6" : 1883 eventTopic "mqttpicoTF26"
+mqttBroker "192.168.1.9" : 1883 eventTopic "mqttpicoTF26"
 
 // --- Comunicazione IOPort <-> CargoService (dallo Sprint 1) ---
 Request loadrequest         : loadrequest(IOPORT_STATE)
@@ -379,7 +379,7 @@ QActor cargorobot context ctxcargoservice
         println("$name | Guasto sonar durante la tratta $CurrentLeg: ARRESTO ROBOT!") color red
         [#
             LegDone = false
-            mqtt.publish("robotsmart26in", "msg(alarm,event,cargorobot,none,alarm(sonarfault),0)")
+            //mqtt.publish("robotsmart26in", "msg(alarm,event,cargorobot,none,alarm(sonarfault),0)")
         #]
         emit alarm : alarm(sonarfault)
     }

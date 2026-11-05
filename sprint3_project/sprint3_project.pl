@@ -1,7 +1,7 @@
 %====================================================================================
 % sprint3_project description   
 %====================================================================================
-mqttBroker("192.168.1.6", "1883", "mqttpicoTF26").
+mqttBroker("192.168.1.9", "1883", "mqttpicoTF26").
 request( loadrequest, loadrequest(IOPORT_STATE) ).
 reply( retrylater, retrylater(CAUSE,HOLD_STATE) ).  %%for loadrequest
 reply( reject, reject(HOLD_STATE) ).  %%for loadrequest

@@ -365,7 +365,7 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 						CommUtils.outred("$name | Guasto sonar durante la tratta $CurrentLeg: ARRESTO ROBOT!")
 						
 						            LegDone = false
-						            mqtt.publish("robotsmart26in", "msg(alarm,event,cargorobot,none,alarm(sonarfault),0)")
+						            //mqtt.publish("robotsmart26in", "msg(alarm,event,cargorobot,none,alarm(sonarfault),0)")
 						emit("alarm", "alarm(sonarfault)" ) 
 						//genTimer( actor, state )
 					}
