@@ -9,10 +9,10 @@ public class Hold implements IHold{
      * INGRESSI SCELTI:
      * - slot1 = (0,2)
      * - slot2 = (0,3)
-     * - slot3 = (2,2)
-     * - slot4 = (2,3)
+     * - slot3 = (4,2)
+     * - slot4 = (4,3)
      */
-    private final int[] slotEntranceX = {0,0,2,2};
+    private final int[] slotEntranceX = {0,0,4,4};
     private final int[] slotEntranceY = {2,3,2,3};
     private final int[] homePos = {0,0};
     private final int[] ioportPos = {4,0};

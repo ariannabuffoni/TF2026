@@ -37,9 +37,13 @@ class Sonar ( name: String, scope: CoroutineScope, isconfined: Boolean=false, is
 		        var TOContainer = 0L
 		        var TOFault = 0L
 		        val WINDOW = 3000L
+		        
+		        var LastSentOcc = false
+		        lateinit var Pico: sonar.PicoMqttAdapter
 		return { //this:ActionBasciFsm
 				state("s0") { //this:State
 					action { //it:State
+						 Pico = sonar.PicoMqttAdapter(myself, "tcp://192.168.1.10:1883", "mqttsonarTF26", "mqttledTF26")  
 						CommUtils.outblue("$name | pronto in ascolto degli eventi sonar via MQTT")
 						//genTimer( actor, state )
 					}
@@ -54,9 +58,26 @@ class Sonar ( name: String, scope: CoroutineScope, isconfined: Boolean=false, is
 					}
 					//After Lenzi Aug2002
 					sysaction { //it:State
+				 	 		stateTimer = TimerActor("timer_idle", 
+				 	 					  scope, context!!, "local_tout_"+name+"_idle", 5000.toLong() )  //OCT2023
 					}	 	 
-					 transition(edgeName="t00",targetState="onReading",cond=whenEvent("sonarreading"))
-					transition(edgeName="t01",targetState="onBlink",cond=whenDispatch("blinkLed"))
+					 transition(edgeName="t00",targetState="onSilence",cond=whenTimeout("local_tout_"+name+"_idle"))   
+					transition(edgeName="t01",targetState="onReading",cond=whenDispatch("sonarreading"))
+					transition(edgeName="t02",targetState="onBlink",cond=whenDispatch("blinkLed"))
+				}	 
+				state("onSilence") { //this:State
+					action { //it:State
+						 val first = !Faulted ; Faulted = true ; TOFault = 0L  
+						if(  first  
+						 ){CommUtils.outred("$name | nessuna lettura da 5s: sonar in guasto")
+						forward("sonarfault", "sonarfault(sonarSilent)" ,"cargoservice" ) 
+						}
+						//genTimer( actor, state )
+					}
+					//After Lenzi Aug2002
+					sysaction { //it:State
+					}	 	 
+					 transition( edgeName="goto",targetState="idle", cond=doswitch() )
 				}	 
 				state("onReading") { //this:State
 					action { //it:State
@@ -65,10 +86,12 @@ class Sonar ( name: String, scope: CoroutineScope, isconfined: Boolean=false, is
 								
 									            Dist = payloadArg(0).toDouble()
 								            	val now = System.currentTimeMillis()
-									            
-								    	        // Valutazione occupazione IOPort (D < DFREE/2)
 								            	val IsOcc = Dist < (DFREE / 2.0)
+								if(  IsOcc != LastSentOcc  
+								 ){ LastSentOcc = IsOcc  
 								forward("updateioport", "updateioport($IsOcc)" ,"ioport" ) 
+								CommUtils.outblue("$name | Stato IOPort fisico variato -> occupied = $IsOcc (Dist=$Dist)")
+								}
 								
 								            	// 1. Logica Finestra Convalida Container (D < DFREE/2 per >= 3s)
 								            	if (IsOcc) {
@@ -81,21 +104,20 @@ class Sonar ( name: String, scope: CoroutineScope, isconfined: Boolean=false, is
 								                	}
 								            	} else {
 									                TOContainer = 0L
-								                	if (Occupied && !IsOcc) {
+								                	if (Occupied) {
 									                    Occupied = false
-								CommUtils.outblue("$name | Container rimosso dall'area sensore")
+								CommUtils.outblue("$name | Container rimosso dall'area sensore (reset logico)")
 								
 								                	}
 								            	}
 									            
-									            // 2. Logica Finestra Convalida Guasto Sonar (D > DFREE per >= 3s)
+								            	// 2. Logica Finestra Convalida Guasto Sonar (D > DFREE per >= 3s)
 								            	if (Dist > DFREE) {
 									                if (TOFault == 0L) TOFault = now
 								                	if (!Faulted && (now - TOFault) >= WINDOW) {
 									                    Faulted = true
 								CommUtils.outred("$name | GUASTO RILEVATO: D=$Dist cm per >= 3s")
 								forward("sonarfault", "sonarfault(sonarOutOfRange)" ,"cargoservice" ) 
-								forward("sonarfault", "sonarfault(sonarOutOfRange)" ,"cargorobot" ) 
 								
 								                	}
 								            	} else {
@@ -104,7 +126,6 @@ class Sonar ( name: String, scope: CoroutineScope, isconfined: Boolean=false, is
 									                    Faulted = false
 								CommUtils.outblue("$name | Sonar ripristinato entro i parametri normali")
 								forward("sonarrestored", "sonarrestored(NONE)" ,"cargoservice" ) 
-								forward("sonarrestored", "sonarrestored(NONE)" ,"cargorobot" ) 
 								
 								                	}
 								            	}
@@ -120,11 +141,9 @@ class Sonar ( name: String, scope: CoroutineScope, isconfined: Boolean=false, is
 					action { //it:State
 						if( checkMsgContent( Term.createTerm("blinkLed(FLAG)"), Term.createTerm("blinkLed(FLAG)"), 
 						                        currentMsg.msgContent()) ) { //set msgArgList
-								
-								                val flag = payloadArg(0)
-								                // Stringa formattata correttamente secondo lo standard QAk per MQTT
-								                val mqttMsg = "msg(blinkLed,dispatch,sonar,picow,blinkLed($flag),1)"
-								                mqtt.publish("mqttledTF26", mqttMsg)
+								 
+								                val flag = payloadArg(0) 
+								                Pico.publishLed(flag)
 								CommUtils.outblue("$name | Comando LED ($flag) inoltrato a PicoW via MQTT")
 						}
 						//genTimer( actor, state )

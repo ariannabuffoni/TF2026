@@ -72,8 +72,8 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t028",targetState="handleLoadRequest",cond=whenRequest("loadrequest"))
-					transition(edgeName="t029",targetState="handleOutOfService",cond=whenDispatch("sonarfault"))
+					 transition(edgeName="t019",targetState="handleLoadRequest",cond=whenRequest("loadrequest"))
+					transition(edgeName="t020",targetState="handleOutOfService",cond=whenDispatch("sonarfault"))
 				}	 
 				state("handleLoadRequest") { //this:State
 					action { //it:State
@@ -136,10 +136,10 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 				 	 		stateTimer = TimerActor("timer_engagedWaitContainer", 
 				 	 					  scope, context!!, "local_tout_"+name+"_engagedWaitContainer", RemainingTime )  //OCT2023
 					}	 	 
-					 transition(edgeName="t130",targetState="handleTimeout",cond=whenTimeout("local_tout_"+name+"_engagedWaitContainer"))   
-					transition(edgeName="t131",targetState="handleBusyRequest",cond=whenRequest("loadrequest"))
-					transition(edgeName="t132",targetState="handleContainer",cond=whenDispatch("sonarcontainer"))
-					transition(edgeName="t133",targetState="handleOutOfService",cond=whenDispatch("sonarfault"))
+					 transition(edgeName="t121",targetState="handleTimeout",cond=whenTimeout("local_tout_"+name+"_engagedWaitContainer"))   
+					transition(edgeName="t122",targetState="handleBusyRequest",cond=whenRequest("loadrequest"))
+					transition(edgeName="t123",targetState="handleContainer",cond=whenDispatch("sonarcontainer"))
+					transition(edgeName="t124",targetState="handleOutOfService",cond=whenDispatch("sonarfault"))
 				}	 
 				state("handleBusyRequest") { //this:State
 					action { //it:State
@@ -204,11 +204,11 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t234",targetState="endTransport",cond=whenReply("transportDone"))
-					transition(edgeName="t235",targetState="handleOutOfService",cond=whenReply("transportFailed"))
-					transition(edgeName="t236",targetState="handleBusyRequest",cond=whenRequest("loadrequest"))
-					transition(edgeName="t237",targetState="faultWhileTransporting",cond=whenDispatch("sonarfault"))
-					transition(edgeName="t238",targetState="restoredWhileTransporting",cond=whenDispatch("sonarrestored"))
+					 transition(edgeName="t225",targetState="endTransport",cond=whenReply("transportDone"))
+					transition(edgeName="t226",targetState="handleOutOfService",cond=whenReply("transportFailed"))
+					transition(edgeName="t227",targetState="handleBusyRequest",cond=whenRequest("loadrequest"))
+					transition(edgeName="t228",targetState="faultWhileTransporting",cond=whenDispatch("sonarfault"))
+					transition(edgeName="t229",targetState="restoredWhileTransporting",cond=whenDispatch("sonarrestored"))
 				}	 
 				state("faultWhileTransporting") { //this:State
 					action { //it:State
@@ -311,8 +311,8 @@ class Cargoservice ( name: String, scope: CoroutineScope, isconfined: Boolean=fa
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t339",targetState="handleRejectOutOfService",cond=whenRequest("loadrequest"))
-					transition(edgeName="t340",targetState="checkRestore",cond=whenDispatch("sonarrestored"))
+					 transition(edgeName="t330",targetState="handleRejectOutOfService",cond=whenRequest("loadrequest"))
+					transition(edgeName="t331",targetState="checkRestore",cond=whenDispatch("sonarrestored"))
 				}	 
 				state("checkRestore") { //this:State
 					action { //it:State

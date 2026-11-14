@@ -1,7 +1,7 @@
 %====================================================================================
 % sprint3_problem description   
 %====================================================================================
-mqttBroker("192.168.1.8", "1883", "mqttpicoTF26").
+mqttBroker("192.168.1.10", "1883", "mqttsonarTF26").
 event( sonarreading, sonarreading(D) ).
 dispatch( sonarcontainer, sonarcontainer(DISTANCE) ).
 dispatch( sonarfault, sonarfault(CAUSE) ).

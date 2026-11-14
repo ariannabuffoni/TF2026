@@ -1,7 +1,6 @@
 %====================================================================================
 % sprint3_project description   
 %====================================================================================
-mqttBroker("192.168.1.9", "1883", "mqttpicoTF26").
 request( loadrequest, loadrequest(IOPORT_STATE) ).
 reply( retrylater, retrylater(CAUSE,HOLD_STATE) ).  %%for loadrequest
 reply( reject, reject(HOLD_STATE) ).  %%for loadrequest
@@ -9,12 +8,11 @@ reply( engaged, engaged(RESERVED_SLOT,HOLD_STATE) ).  %%for loadrequest
 dispatch( updateHoldDisplay, updateHoldDisplay(STATE,HOLD_STATE,MSG) ).
 dispatch( updateWorkingState, updateWorkingState(STATE) ).
 dispatch( button_pushed, button_pushed(X) ).
-event( sonarreading, sonarreading(D) ).
+dispatch( sonarreading, sonarreading(D) ).
 dispatch( sonarcontainer, sonarcontainer(DISTANCE) ).
 dispatch( sonarfault, sonarfault(CAUSE) ).
 dispatch( sonarrestored, sonarrestored(NONE) ).
 dispatch( blinkLed, blinkLed(FLAG) ).
-event( alarm, alarm(X) ).
 dispatch( updateioport, updateioport(STATE_IOPORT) ).
 request( transportContainer, transportContainer(SLOT,TARGETX,TARGETY) ).
 reply( transportDone, transportDone(SLOT) ).  %%for transportContainer

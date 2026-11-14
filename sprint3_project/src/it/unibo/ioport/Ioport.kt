@@ -52,10 +52,10 @@ class Ioport ( name: String, scope: CoroutineScope, isconfined: Boolean=false, i
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t041",targetState="handleButton",cond=whenDispatch("button_pushed"))
-					transition(edgeName="t042",targetState="handleCoreHoldUpdate",cond=whenDispatch("updateHoldDisplay"))
-					transition(edgeName="t043",targetState="handleCoreWorkingState",cond=whenDispatch("updateWorkingState"))
-					transition(edgeName="t044",targetState="handleIopState",cond=whenDispatch("updateioport"))
+					 transition(edgeName="t032",targetState="handleButton",cond=whenDispatch("button_pushed"))
+					transition(edgeName="t033",targetState="handleCoreHoldUpdate",cond=whenDispatch("updateHoldDisplay"))
+					transition(edgeName="t034",targetState="handleCoreWorkingState",cond=whenDispatch("updateWorkingState"))
+					transition(edgeName="t035",targetState="handleIopState",cond=whenDispatch("updateioport"))
 				}	 
 				state("handleIopState") { //this:State
 					action { //it:State
@@ -86,9 +86,9 @@ class Ioport ( name: String, scope: CoroutineScope, isconfined: Boolean=false, i
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t145",targetState="handleEngaged",cond=whenReply("engaged"))
-					transition(edgeName="t146",targetState="handleReject",cond=whenReply("reject"))
-					transition(edgeName="t147",targetState="handleRetryLater",cond=whenReply("retrylater"))
+					 transition(edgeName="t136",targetState="handleEngaged",cond=whenReply("engaged"))
+					transition(edgeName="t137",targetState="handleReject",cond=whenReply("reject"))
+					transition(edgeName="t138",targetState="handleRetryLater",cond=whenReply("retrylater"))
 				}	 
 				state("handleEngaged") { //this:State
 					action { //it:State

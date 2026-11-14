@@ -34,7 +34,7 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 		        var Slot     = 0
 		        var X        = 0      // coordinate dello slot finale 
 		        var Y        = 0
-		        var StepTime = 335
+		        var StepTime = 345
 		
 		        val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
 		
@@ -42,11 +42,6 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 		        var FailCause    = "fail_RobotSmart26"
 		        var HomeAttempts = 0
 		        var NearHome     = false         // true se manca solo l'ultimo passo per casa
-		        
-		        // AGGIUNTO: Variabili di stato per la memorizzazione della tratta in caso di allarme sonar
-		        var PendingX     = 0
-		        var PendingY     = 0
-		        var CurrentLeg   = ""
 		        
 		        var LegDone      = false
 		return { //this:ActionBasciFsm
@@ -74,7 +69,7 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 					//After Lenzi Aug2002
 					sysaction { //it:State
 					}	 	 
-					 transition(edgeName="t02",targetState="extractRequest",cond=whenRequest("transportContainer"))
+					 transition(edgeName="t03",targetState="extractRequest",cond=whenRequest("transportContainer"))
 				}	 
 				state("extractRequest") { //this:State
 					action { //it:State
@@ -113,10 +108,9 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 				 	 		stateTimer = TimerActor("timer_moveIOPort", 
 				 	 					  scope, context!!, "local_tout_"+name+"_moveIOPort", 30000.toLong() )  //OCT2023
 					}	 	 
-					 transition(edgeName="t13",targetState="moveTimeout",cond=whenTimeout("local_tout_"+name+"_moveIOPort"))   
-					transition(edgeName="t14",targetState="collectContainer",cond=whenReply("moverobotdone"))
-					transition(edgeName="t15",targetState="legFailed",cond=whenReply("moverobotfailed"))
-					transition(edgeName="t16",targetState="onSonarFaultDuringMove",cond=whenDispatch("sonarfault"))
+					 transition(edgeName="t14",targetState="moveTimeout",cond=whenTimeout("local_tout_"+name+"_moveIOPort"))   
+					transition(edgeName="t15",targetState="collectContainer",cond=whenReply("moverobotdone"))
+					transition(edgeName="t16",targetState="legFailed",cond=whenReply("moverobotfailed"))
 				}	 
 				state("collectContainer") { //this:State
 					action { //it:State
@@ -150,7 +144,6 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 					 transition(edgeName="t27",targetState="moveTimeout",cond=whenTimeout("local_tout_"+name+"_moveSlot5"))   
 					transition(edgeName="t28",targetState="marking",cond=whenReply("moverobotdone"))
 					transition(edgeName="t29",targetState="legFailed",cond=whenReply("moverobotfailed"))
-					transition(edgeName="t210",targetState="onSonarFaultDuringMove",cond=whenDispatch("sonarfault"))
 				}	 
 				state("marking") { //this:State
 					action { //it:State
@@ -162,7 +155,7 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 				 	 		stateTimer = TimerActor("timer_marking", 
 				 	 					  scope, context!!, "local_tout_"+name+"_marking", 5000.toLong() )  //OCT2023
 					}	 	 
-					 transition(edgeName="t311",targetState="moveFinalSlot",cond=whenTimeout("local_tout_"+name+"_marking"))   
+					 transition(edgeName="t310",targetState="moveFinalSlot",cond=whenTimeout("local_tout_"+name+"_marking"))   
 				}	 
 				state("moveFinalSlot") { //this:State
 					action { //it:State
@@ -180,10 +173,9 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 				 	 		stateTimer = TimerActor("timer_moveFinalSlot", 
 				 	 					  scope, context!!, "local_tout_"+name+"_moveFinalSlot", 30000.toLong() )  //OCT2023
 					}	 	 
-					 transition(edgeName="t412",targetState="moveTimeout",cond=whenTimeout("local_tout_"+name+"_moveFinalSlot"))   
-					transition(edgeName="t413",targetState="depositContainer",cond=whenReply("moverobotdone"))
-					transition(edgeName="t414",targetState="legFailed",cond=whenReply("moverobotfailed"))
-					transition(edgeName="t415",targetState="onSonarFaultDuringMove",cond=whenDispatch("sonarfault"))
+					 transition(edgeName="t411",targetState="moveTimeout",cond=whenTimeout("local_tout_"+name+"_moveFinalSlot"))   
+					transition(edgeName="t412",targetState="depositContainer",cond=whenReply("moverobotdone"))
+					transition(edgeName="t413",targetState="legFailed",cond=whenReply("moverobotfailed"))
 				}	 
 				state("depositContainer") { //this:State
 					action { //it:State
@@ -250,10 +242,9 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 				 	 		stateTimer = TimerActor("timer_goHome", 
 				 	 					  scope, context!!, "local_tout_"+name+"_goHome", 30000.toLong() )  //OCT2023
 					}	 	 
-					 transition(edgeName="t516",targetState="moveTimeout",cond=whenTimeout("local_tout_"+name+"_goHome"))   
-					transition(edgeName="t517",targetState="tuneHome",cond=whenReply("moverobotdone"))
-					transition(edgeName="t518",targetState="homeMoveFailed",cond=whenReply("moverobotfailed"))
-					transition(edgeName="t519",targetState="onSonarFaultDuringMove",cond=whenDispatch("sonarfault"))
+					 transition(edgeName="t514",targetState="moveTimeout",cond=whenTimeout("local_tout_"+name+"_goHome"))   
+					transition(edgeName="t515",targetState="tuneHome",cond=whenReply("moverobotdone"))
+					transition(edgeName="t516",targetState="homeMoveFailed",cond=whenReply("moverobotfailed"))
 				}	 
 				state("homeMoveFailed") { //this:State
 					action { //it:State
@@ -309,8 +300,8 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 				 	 		stateTimer = TimerActor("timer_tuneHome", 
 				 	 					  scope, context!!, "local_tout_"+name+"_tuneHome", 20000.toLong() )  //OCT2023
 					}	 	 
-					 transition(edgeName="t620",targetState="tuneTimeout",cond=whenTimeout("local_tout_"+name+"_tuneHome"))   
-					transition(edgeName="t621",targetState="endHoming",cond=whenReply("tuneDone"))
+					 transition(edgeName="t617",targetState="tuneTimeout",cond=whenTimeout("local_tout_"+name+"_tuneHome"))   
+					transition(edgeName="t618",targetState="endHoming",cond=whenReply("tuneDone"))
 				}	 
 				state("tuneTimeout") { //this:State
 					action { //it:State
@@ -359,106 +350,6 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 					sysaction { //it:State
 					}	 	 
 					 transition( edgeName="goto",targetState="idle", cond=doswitch() )
-				}	 
-				state("onSonarFaultDuringMove") { //this:State
-					action { //it:State
-						CommUtils.outred("$name | Guasto sonar durante la tratta $CurrentLeg: ARRESTO ROBOT!")
-						
-						            LegDone = false
-						            //mqtt.publish("robotsmart26in", "msg(alarm,event,cargorobot,none,alarm(sonarfault),0)")
-						emit("alarm", "alarm(sonarfault)" ) 
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition(edgeName="tHalt22",targetState="robotStopped",cond=whenReply("moverobotfailed"))
-					transition(edgeName="tHalt23",targetState="robotStoppedLegDone",cond=whenReply("moverobotdone"))
-				}	 
-				state("robotStoppedLegDone") { //this:State
-					action { //it:State
-						 LegDone = true  
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition( edgeName="goto",targetState="robotStopped", cond=doswitch() )
-				}	 
-				state("robotStopped") { //this:State
-					action { //it:State
-						CommUtils.outred("$name | Robot fermo (tratta $CurrentLeg), attendo sonarrestored")
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition(edgeName="tWaitRestore24",targetState="resumeNavigation",cond=whenDispatch("sonarrestored"))
-				}	 
-				state("resumeNavigation") { //this:State
-					action { //it:State
-						CommUtils.outyellow("$name | Sonar ripristinato: ripresa della tratta $CurrentLeg verso ($PendingX, $PendingY)")
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition( edgeName="goto",targetState="evaluateResumedLeg", cond=doswitchGuarded({ LegDone  
-					}) )
-					transition( edgeName="goto",targetState="doResume", cond=doswitchGuarded({! ( LegDone  
-					) }) )
-				}	 
-				state("doResume") { //this:State
-					action { //it:State
-						request("moverobot", "moverobot($PendingX,$PendingY,$StepTime)" ,"robotsmart" )  
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-				 	 		stateTimer = TimerActor("timer_doResume", 
-				 	 					  scope, context!!, "local_tout_"+name+"_doResume", 30000.toLong() )  //OCT2023
-					}	 	 
-					 transition(edgeName="tResume25",targetState="moveTimeout",cond=whenTimeout("local_tout_"+name+"_doResume"))   
-					transition(edgeName="tResume26",targetState="evaluateResumedLeg",cond=whenReply("moverobotdone"))
-					transition(edgeName="tResume27",targetState="legFailed",cond=whenReply("moverobotfailed"))
-				}	 
-				state("evaluateResumedLeg") { //this:State
-					action { //it:State
-						 LegDone = false  
-						CommUtils.outblue("$name | Tratta $CurrentLeg completata, proseguo")
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition( edgeName="goto",targetState="collectContainer", cond=doswitchGuarded({ CurrentLeg == "toIOPort"  
-					}) )
-					transition( edgeName="goto",targetState="checkSlot5", cond=doswitchGuarded({! ( CurrentLeg == "toIOPort"  
-					) }) )
-				}	 
-				state("checkSlot5") { //this:State
-					action { //it:State
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition( edgeName="goto",targetState="marking", cond=doswitchGuarded({ CurrentLeg == "toSlot5"  
-					}) )
-					transition( edgeName="goto",targetState="checkFinalSlot", cond=doswitchGuarded({! ( CurrentLeg == "toSlot5"  
-					) }) )
-				}	 
-				state("checkFinalSlot") { //this:State
-					action { //it:State
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition( edgeName="goto",targetState="depositContainer", cond=doswitchGuarded({ CurrentLeg == "toFinalSlot"  
-					}) )
-					transition( edgeName="goto",targetState="tuneHome", cond=doswitchGuarded({! ( CurrentLeg == "toFinalSlot"  
-					) }) )
 				}	 
 			}
 		}

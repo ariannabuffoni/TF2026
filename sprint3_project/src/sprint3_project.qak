@@ -1,7 +1,7 @@
 System sprint3_project
 
 // Dichiarazione del broker MQTT per l'interfacciamento con il Raspberry PicoW
-mqttBroker "192.168.1.9" : 1883 eventTopic "mqttpicoTF26"
+// mqttBroker "192.168.1.10" : 1883 eventTopic "mqttpicoTF26"
 
 // --- Comunicazione IOPort <-> CargoService (dallo Sprint 1) ---
 Request loadrequest         : loadrequest(IOPORT_STATE)
@@ -14,12 +14,11 @@ Dispatch updateWorkingState : updateWorkingState(STATE)
 Dispatch button_pushed      : button_pushed(X)
 
 // Rimossi i vecchi dispatch mock del sensore/errore e sostituiti con i messaggi telemetrici e di allarme dello Sprint 3
-Event   sonarreading        : sonarreading(D)
+Dispatch sonarreading        : sonarreading(D)
 Dispatch sonarcontainer     : sonarcontainer(DISTANCE)
 Dispatch sonarfault         : sonarfault(CAUSE)
 Dispatch sonarrestored      : sonarrestored(NONE)
 Dispatch blinkLed           : blinkLed(FLAG)
-Event   alarm               : alarm(X)
 
 // Gestione occupazione IoPort
 Dispatch updateioport 		: updateioport(STATE_IOPORT)
@@ -50,7 +49,7 @@ Context ctxrobotsmart   ip [host="127.0.0.1" port=8020]
 ExternalQActor robotsmart context ctxrobotsmart
 
 
-// ---------------- Attore SONAR (Filtro Temporale e Gateway MQTT) -----------------------------------------------------------
+// ---------------- Attore SONAR Ottimizzato e Sincronizzato -------------------------------------------
 QActor sonar context ctxcargoservice {
     [#
         val DFREE = 20
@@ -60,29 +59,47 @@ QActor sonar context ctxcargoservice {
         var TOContainer = 0L
         var TOFault = 0L
         val WINDOW = 3000L
+        
+        var LastSentOcc = false
+        lateinit var Pico: sonar.PicoMqttAdapter
     #]
     State s0 initial {
+    	// CAMBIARE IP in base a ipconfig
+        [# Pico = sonar.PicoMqttAdapter(myself, "tcp://192.168.1.10:1883", "mqttsonarTF26", "mqttledTF26") #]
         println("$name | pronto in ascolto degli eventi sonar via MQTT") color blue
     }
     Goto idle
 
-    State idle {
-    }
-    Transition t0
-        whenEvent sonarreading -> onReading
-        whenMsg   blinkLed     -> onBlink
-
+    State idle { }
+	Transition t0
+    	whenTime 5000        -> onSilence
+    	whenMsg sonarreading -> onReading
+    	whenMsg blinkLed     -> onBlink
+	
+	State onSilence {
+	    [# val first = !Faulted ; Faulted = true ; TOFault = 0L #]
+	    if [# first #] {
+        	println("$name | nessuna lettura da 5s: sonar in guasto") color red
+        	forward cargoservice -m sonarfault : sonarfault(sonarSilent)
+    	}
+	}
+	Goto idle
+	
     State onReading {
     	onMsg(sonarreading : sonarreading(D)) {
         	[#
 	            Dist = payloadArg(0).toDouble()
             	val now = System.currentTimeMillis()
-	            
-    	        // Valutazione occupazione IOPort (D < DFREE/2)
             	val IsOcc = Dist < (DFREE / 2.0)
         	#]
-	        // Inoltra lo stato aggiornato all'attore ioport
-    	    forward ioport -m updateioport : updateioport($IsOcc)
+        	
+        	// Inoltra SEMPRE lo stato corrente all'ioport se c'è una variazione reale
+	        if [# IsOcc != LastSentOcc #] {
+	            [# LastSentOcc = IsOcc #]
+	            forward ioport -m updateioport : updateioport($IsOcc)
+	            println("$name | Stato IOPort fisico variato -> occupied = $IsOcc (Dist=$Dist)") color blue
+	        }
+
         	[#
             	// 1. Logica Finestra Convalida Container (D < DFREE/2 per >= 3s)
             	if (IsOcc) {
@@ -96,23 +113,22 @@ QActor sonar context ctxcargoservice {
                 	}
             	} else {
 	                TOContainer = 0L
-                	if (Occupied && !IsOcc) {
+                	if (Occupied) {
 	                    Occupied = false
                     	#]
-                    	println("$name | Container rimosso dall'area sensore") color blue
+                    	println("$name | Container rimosso dall'area sensore (reset logico)") color blue
                     	[#
                 	}
             	}
 	            
-	            // 2. Logica Finestra Convalida Guasto Sonar (D > DFREE per >= 3s)
+            	// 2. Logica Finestra Convalida Guasto Sonar (D > DFREE per >= 3s)
             	if (Dist > DFREE) {
 	                if (TOFault == 0L) TOFault = now
                 	if (!Faulted && (now - TOFault) >= WINDOW) {
 	                    Faulted = true
     	                #]
                     	println("$name | GUASTO RILEVATO: D=$Dist cm per >= 3s") color red
-                    	forward cargoservice -m sonarfault : sonarfault(sonarOutOfRange)
-                    	forward cargorobot    -m sonarfault : sonarfault(sonarOutOfRange)
+                    	forward cargoservice -m sonarfault : sonarfault(sonarOutOfRange)            
                     	[#
                 	}
             	} else {
@@ -122,7 +138,6 @@ QActor sonar context ctxcargoservice {
                     	#]
                     	println("$name | Sonar ripristinato entro i parametri normali") color blue
                     	forward cargoservice -m sonarrestored : sonarrestored(NONE)
-                    	forward cargorobot    -m sonarrestored : sonarrestored(NONE)
                     	[#
                 	}
             	}
@@ -133,11 +148,9 @@ QActor sonar context ctxcargoservice {
 	
     State onBlink {
         onMsg(blinkLed : blinkLed(FLAG)) {
-            [#
-                val flag = payloadArg(0)
-                // Stringa formattata correttamente secondo lo standard QAk per MQTT
-                val mqttMsg = "msg(blinkLed,dispatch,sonar,picow,blinkLed($flag),1)"
-                mqtt.publish("mqttledTF26", mqttMsg)
+            [# 
+                val flag = payloadArg(0) 
+                Pico.publishLed(flag)
             #]
             println("$name | Comando LED ($flag) inoltrato a PicoW via MQTT") color blue
         }
@@ -153,7 +166,7 @@ QActor cargorobot context ctxcargoservice
         var Slot     = 0
         var X        = 0      // coordinate dello slot finale 
         var Y        = 0
-        var StepTime = 335
+        var StepTime = 345
 
         val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
 
@@ -161,11 +174,6 @@ QActor cargorobot context ctxcargoservice
         var FailCause    = "fail_RobotSmart26"
         var HomeAttempts = 0
         var NearHome     = false         // true se manca solo l'ultimo passo per casa
-        
-        // AGGIUNTO: Variabili di stato per la memorizzazione della tratta in caso di allarme sonar
-        var PendingX     = 0
-        var PendingY     = 0
-        var CurrentLeg   = ""
         
         var LegDone      = false
     #]
@@ -219,8 +227,6 @@ QActor cargorobot context ctxcargoservice
         whenTime 30000            -> moveTimeout
         whenReply moverobotdone   -> collectContainer
         whenReply moverobotfailed -> legFailed
-        // AGGIUNTA: Gestione interruzione per guasto sonar durante il movimento
-        whenMsg sonarfault        -> onSonarFaultDuringMove
 
     State collectContainer {
         println("$name | collecting container...") color blue
@@ -245,8 +251,6 @@ QActor cargorobot context ctxcargoservice
         whenTime 30000            -> moveTimeout
         whenReply moverobotdone   -> marking
         whenReply moverobotfailed -> legFailed
-        // AGGIUNTA: Gestione interruzione per guasto sonar durante il movimento
-        whenMsg sonarfault        -> onSonarFaultDuringMove
         
     State marking {
         println("$name | marker working...") color blue
@@ -269,8 +273,6 @@ QActor cargorobot context ctxcargoservice
         whenTime 30000            -> moveTimeout
         whenReply moverobotdone   -> depositContainer
         whenReply moverobotfailed -> legFailed
-        // AGGIUNTA: Gestione interruzione per guasto sonar durante il movimento
-        whenMsg sonarfault        -> onSonarFaultDuringMove
         
     State depositContainer {
         println("$name | depositing container...") color blue
@@ -316,8 +318,6 @@ QActor cargorobot context ctxcargoservice
         whenTime 30000            -> moveTimeout
         whenReply moverobotdone   -> tuneHome
         whenReply moverobotfailed -> homeMoveFailed
-        // AGGIUNTA: Gestione interruzione per guasto sonar durante il movimento
-        whenMsg sonarfault        -> onSonarFaultDuringMove
         
     State homeMoveFailed {
         onMsg (moverobotfailed : moverobotfailed(PLANDONE, PLANTODO)) {
@@ -374,55 +374,6 @@ QActor cargorobot context ctxcargoservice
         replyTo transportContainer with transportFailed : transportFailed($FailCause)
     }
     Goto idle
-
-    State onSonarFaultDuringMove {
-        println("$name | Guasto sonar durante la tratta $CurrentLeg: ARRESTO ROBOT!") color red
-        [#
-            LegDone = false
-            //mqtt.publish("robotsmart26in", "msg(alarm,event,cargorobot,none,alarm(sonarfault),0)")
-        #]
-        emit alarm : alarm(sonarfault)
-    }
-    Transition tHalt
-        whenReply moverobotfailed -> robotStopped
-        whenReply moverobotdone   -> robotStoppedLegDone
-
-    State robotStoppedLegDone {
-        [# LegDone = true #]
-    }
-    Goto robotStopped
-
-    State robotStopped {
-        println("$name | Robot fermo (tratta $CurrentLeg), attendo sonarrestored") color red
-    }
-    Transition tWaitRestore
-        whenMsg sonarrestored -> resumeNavigation
-
-    State resumeNavigation {
-        println("$name | Sonar ripristinato: ripresa della tratta $CurrentLeg verso ($PendingX, $PendingY)") color yellow
-    }
-    Goto evaluateResumedLeg if [# LegDone #] else doResume
-
-    State doResume {
-        request robotsmart -m moverobot : moverobot($PendingX, $PendingY, $StepTime)
-    }
-    Transition tResume
-        whenTime 30000            -> moveTimeout
-        whenReply moverobotdone   -> evaluateResumedLeg
-        whenReply moverobotfailed -> legFailed
-
-    // Tratta completata: si passa al passo SUCCESSIVO, non si rifà la tratta
-    State evaluateResumedLeg {
-        [# LegDone = false #]
-        println("$name | Tratta $CurrentLeg completata, proseguo") color blue
-    }
-    Goto collectContainer if [# CurrentLeg == "toIOPort" #] else checkSlot5
-
-    State checkSlot5 { }
-    Goto marking if [# CurrentLeg == "toSlot5" #] else checkFinalSlot
-
-    State checkFinalSlot { }
-    Goto depositContainer if [# CurrentLeg == "toFinalSlot" #] else tuneHome
 }
 
 // ---------------- Attore CARGOSERVICE -----------------------------------------------------------
@@ -617,6 +568,7 @@ QActor cargoservice context ctxcargoservice
         #]
         // MODIFICATO: Spegne il LED tramite l'attore sonar a fine trasporto
         forward sonar -m blinkLed : blinkLed(false)
+        
         forward ioport -m updateHoldDisplay : updateHoldDisplay($StateStr, $CurrentHoldState, $LoadedMsgStr)
         delay 1500
     }

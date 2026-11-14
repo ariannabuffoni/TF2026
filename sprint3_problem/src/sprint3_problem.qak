@@ -1,7 +1,7 @@
 System sprint3_problem
 
 // Broker MQTT dichiarato per ricevere i dati telemetrici simulati dal PicoW
-mqttBroker "192.168.1.8" : 1883 eventTopic "mqttpicoTF26"
+mqttBroker "192.168.1.10" : 1883 eventTopic "mqttsonarTF26"
 
 // --- 1. Definizione di tutti i Messaggi dello Sprint 3 ---
 Event sonarreading    : sonarreading(D)          // Lettura istantanea grezza (dal PicoW)
