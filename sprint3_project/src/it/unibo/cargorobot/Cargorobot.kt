@@ -34,7 +34,7 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 		        var Slot     = 0
 		        var X        = 0      // coordinate dello slot finale 
 		        var Y        = 0
-		        var StepTime = 345
+		        var StepTime = 350
 		
 		        val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
 		
@@ -95,10 +95,6 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 						
 						    		var XIOP = h.getIOPortX()
 						    		var YIOP = h.getIOPortY()
-						    		// AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
-						    		PendingX = XIOP
-						    		PendingY = YIOP
-						    		CurrentLeg = "toIOPort"
 						CommUtils.outblue("$name | moving to IOPort ($XIOP, $YIOP)")
 						request("moverobot", "moverobot($XIOP,$YIOP,$StepTime)" ,"robotsmart" )  
 						//genTimer( actor, state )
@@ -128,10 +124,6 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 						
 						    		var X5 = h.getMarkerX()
 						    		var Y5 = h.getMarkerY()
-						    		// AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
-						    		PendingX = X5
-						    		PendingY = Y5
-						    		CurrentLeg = "toSlot5"
 						CommUtils.outblue("$name | moving to slot5 ($X5, $Y5)")
 						request("moverobot", "moverobot($X5,$Y5,$StepTime)" ,"robotsmart" )  
 						//genTimer( actor, state )
@@ -159,11 +151,6 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 				}	 
 				state("moveFinalSlot") { //this:State
 					action { //it:State
-						
-						            // AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
-						            PendingX = X
-						            PendingY = Y
-						            CurrentLeg = "toFinalSlot"
 						CommUtils.outblue("$name | moving to final slot ($X, $Y)")
 						request("moverobot", "moverobot($X,$Y,$StepTime)" ,"robotsmart" )  
 						//genTimer( actor, state )
@@ -229,10 +216,6 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 						    		HomeAttempts++
 						    		var XHOME = h.getHomeX()
 						    		var YHOME = h.getHomeY()
-						    		//AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
-						    		PendingX = XHOME
-						    		PendingY = YHOME
-						    		CurrentLeg = "toHome"
 						CommUtils.outblue("$name | going back home (tentativo $HomeAttempts di $MaxHomeAttempts)")
 						request("moverobot", "moverobot($XHOME,$YHOME,$StepTime)" ,"robotsmart" )  
 						//genTimer( actor, state )
@@ -318,7 +301,7 @@ class Cargorobot ( name: String, scope: CoroutineScope, isconfined: Boolean=fals
 					action { //it:State
 						CommUtils.outblue("$name | tune completato, robot riallineato in HOME")
 						forward("setrobotstate", "setpos(0,0,down)" ,"robotsmart" ) 
-						delay(300) 
+						delay(600) 
 						//genTimer( actor, state )
 					}
 					//After Lenzi Aug2002

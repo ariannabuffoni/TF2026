@@ -166,7 +166,7 @@ QActor cargorobot context ctxcargoservice
         var Slot     = 0
         var X        = 0      // coordinate dello slot finale 
         var Y        = 0
-        var StepTime = 345
+        var StepTime = 350
 
         val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
 
@@ -215,10 +215,6 @@ QActor cargorobot context ctxcargoservice
     	[#
     		var XIOP = h.getIOPortX()
     		var YIOP = h.getIOPortY()
-    		// AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
-    		PendingX = XIOP
-    		PendingY = YIOP
-    		CurrentLeg = "toIOPort"
     	#]
         println("$name | moving to IOPort ($XIOP, $YIOP)") color blue
         request robotsmart -m moverobot : moverobot($XIOP, $YIOP, $StepTime)
@@ -239,10 +235,6 @@ QActor cargorobot context ctxcargoservice
     	[#
     		var X5 = h.getMarkerX()
     		var Y5 = h.getMarkerY()
-    		// AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
-    		PendingX = X5
-    		PendingY = Y5
-    		CurrentLeg = "toSlot5"
     	#]
         println("$name | moving to slot5 ($X5, $Y5)") color blue
         request robotsmart -m moverobot : moverobot($X5, $Y5, $StepTime)
@@ -260,12 +252,6 @@ QActor cargorobot context ctxcargoservice
 
     // --- 3. slot5 -> slot finale ---
     State moveFinalSlot {
-        [#
-            // AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
-            PendingX = X
-            PendingY = Y
-            CurrentLeg = "toFinalSlot"
-        #]
         println("$name | moving to final slot ($X, $Y)") color blue
         request robotsmart -m moverobot : moverobot($X, $Y, $StepTime)
     }
@@ -306,10 +292,6 @@ QActor cargorobot context ctxcargoservice
     		HomeAttempts++
     		var XHOME = h.getHomeX()
     		var YHOME = h.getHomeY()
-    		//AGGIUNTO: Salvataggio coordinate e nome della tratta corrente
-    		PendingX = XHOME
-    		PendingY = YHOME
-    		CurrentLeg = "toHome"
     	#]
         println("$name | going back home (tentativo $HomeAttempts di $MaxHomeAttempts)") color blue
         request robotsmart -m moverobot : moverobot($XHOME, $YHOME, $StepTime)
@@ -359,7 +341,7 @@ QActor cargorobot context ctxcargoservice
     State endHoming {
         println("$name | tune completato, robot riallineato in HOME") color blue
         forward robotsmart -m setrobotstate : setpos(0,0,down)
-        delay 300
+        delay 600
     }
     Goto finishKo if [# Failed #] else finishOk
 

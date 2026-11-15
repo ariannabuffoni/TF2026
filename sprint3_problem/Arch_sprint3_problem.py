@@ -30,5 +30,4 @@ with Diagram('sprint3_problemArch', show=False, outformat='png', graph_attr=grap
           cargoservice_analyst=Custom('cargoservice_analyst','./qakicons/symActorWithobjSmall.png')
           cargorobot_analyst=Custom('cargorobot_analyst','./qakicons/symActorWithobjSmall.png')
      sys >> Edge( label='sonarreading', **evattr, decorate='true', fontcolor='darkgreen') >> sonar_analyst
-     cargorobot_analyst >> Edge( label='alarm', **eventedgeattr, decorate='true', fontcolor='red') >> sys
 diag

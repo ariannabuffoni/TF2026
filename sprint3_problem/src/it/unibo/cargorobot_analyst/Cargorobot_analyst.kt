@@ -59,7 +59,6 @@ class Cargorobot_analyst ( name: String, scope: CoroutineScope, isconfined: Bool
 					sysaction { //it:State
 					}	 	 
 					 transition(edgeName="t16",targetState="evaluateCompletedLeg",cond=whenReply("moverobotdone"))
-					transition(edgeName="t17",targetState="handleFaultDuringMove",cond=whenDispatch("sonarfault"))
 				}	 
 				state("evaluateCompletedLeg") { //this:State
 					action { //it:State
@@ -70,27 +69,6 @@ class Cargorobot_analyst ( name: String, scope: CoroutineScope, isconfined: Bool
 					sysaction { //it:State
 					}	 	 
 					 transition( edgeName="goto",targetState="idle", cond=doswitch() )
-				}	 
-				state("handleFaultDuringMove") { //this:State
-					action { //it:State
-						CommUtils.outred("$name | guasto sonar in marcia: emissione evento alarm per bloccare RobotSmart26")
-						emit("alarm", "alarm(sonarfault)" ) 
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition(edgeName="t28",targetState="resumeNavigation",cond=whenDispatch("sonarrestored"))
-				}	 
-				state("resumeNavigation") { //this:State
-					action { //it:State
-						CommUtils.outgreen("$name | sonar ripristinato: ripresa della navigazione interrotta")
-						//genTimer( actor, state )
-					}
-					//After Lenzi Aug2002
-					sysaction { //it:State
-					}	 	 
-					 transition( edgeName="goto",targetState="moving", cond=doswitch() )
 				}	 
 			}
 		}

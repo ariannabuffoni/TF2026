@@ -1,7 +1,7 @@
 System sprint3_problem
 
 // Broker MQTT dichiarato per ricevere i dati telemetrici simulati dal PicoW
-mqttBroker "192.168.1.10" : 1883 eventTopic "mqttsonarTF26"
+mqttBroker "192.168.1.10" : 1883 eventTopic "mqttpicoTF26"
 
 // --- 1. Definizione di tutti i Messaggi dello Sprint 3 ---
 Event sonarreading    : sonarreading(D)          // Lettura istantanea grezza (dal PicoW)
@@ -99,42 +99,25 @@ QActor cargoservice_analyst context ctxcargoservice {
 // --- Analisi dell'attore CargoRobot (Gestione sicurezza in movimento) ---
 QActor cargorobot_analyst context ctxcargoservice {
     State s0 initial {
-        println("$name | Analisi - CargoRobot pronto") color blue
+    	println("$name | Analisi - CargoRobot pronto") color blue
     }
     Goto idle
-
-    State idle {
-        println("$name | in attesa di richieste di trasporto...") color blue
+    
+    State idle { 
+    	println("$name | in attesa di richieste di trasporto...") color blue
     }
-    Transition t0
-        whenRequest transportContainer -> moving
-
+    Transition t0 
+    	whenRequest transportContainer -> moving
+    	
     State moving {
         println("$name | robot in movimento lungo la tratta nella stiva...") color blue
-        // Invia la richiesta di movimento 'moverobot' a RobotSmart26
+        // il guasto del sonar non riguarda cargorobot: il trasporto in corso viene completato
     }
-    Transition t1
-        // Se giunge la risposta di successo corretta da RobotSmart26
-        whenReply moverobotdone  -> evaluateCompletedLeg
-        // Se si verifica un guasto sonar durante la marcia, scatta la transizione di sicurezza
-        whenMsg   sonarfault   -> handleFaultDuringMove
-
+    Transition t1 
+    	whenReply moverobotdone -> evaluateCompletedLeg
+    	
     State evaluateCompletedLeg {
         println("$name | tratta completata con successo tramite moverobotok") color blue
-        // Qui l'analista modella il completamento o il passaggio alla tratta successiva
     }
     Goto idle
-
-    State handleFaultDuringMove {
-        println("$name | guasto sonar in marcia: emissione evento alarm per bloccare RobotSmart26") color red
-        emit alarm : alarm(sonarfault)
-    }
-    Transition t2
-        // Il robot attende che il sonar torni nei parametri prima di riprendere la rotta
-        whenMsg sonarrestored -> resumeNavigation
-
-    State resumeNavigation {
-        println("$name | sonar ripristinato: ripresa della navigazione interrotta") color green
-    }
-    Goto moving
 }
