@@ -65,7 +65,7 @@ QActor sonar context ctxcargoservice {
     #]
     State s0 initial {
     	// CAMBIARE IP in base a ipconfig
-        [# Pico = sonar.PicoMqttAdapter(myself, "tcp://192.168.1.10:1883", "mqttsonarTF26", "mqttledTF26") #]
+        [# Pico = sonar.PicoMqttAdapter(myself, "tcp://192.168.137.1:1883", "mqttsonarTF26", "mqttledTF26") #]
         println("$name | pronto in ascolto degli eventi sonar via MQTT") color blue
     }
     Goto idle
@@ -166,7 +166,7 @@ QActor cargorobot context ctxcargoservice
         var Slot     = 0
         var X        = 0      // coordinate dello slot finale 
         var Y        = 0
-        var StepTime = 350
+        var StepTime = 345
 
         val MaxHomeAttempts = 3          // tentativi massimi di rientro in HOME
 

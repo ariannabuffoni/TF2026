@@ -332,7 +332,7 @@ mqttBroker "IP_BROKER" : 1883 eventTopic "mqttsonarTF26"
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Modello dell'Analista del Problema</h3>
+        <h3><a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint3_problem/src/sprint3_problem.qak" target="_blank">Modello dell'Analista del Problema</a></h3>
         <p>
             A completamento dell'analisi, viene formalizzato il modello logico che include il broker MQTT, i nuovi eventi di lettura telemetrica, i dispatch di notifica guasto/ripristino e il pilotaggio del LED:
             <pre>
@@ -489,7 +489,7 @@ QActor cargorobot_analyst context ctxcargoservice {
                 <!-- TP-3.A1 -->
                 <tr style="background-color: #ffffff;">
                     <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">A1: Falso Positivo Container (&lt; 3s)</td>
-                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Attore <code>sonar</code> attivo in <code>idle</code>; nessuna presenza rilevata (D &gt; DFREE).</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Attore <code>sonar</code> attivo in <code>idle</code>; nessuna presenza rilevata (DFREE/2 &le; D &le; DFREE).</td>
                     <td style="padding: 10px; border: 1.5px solid #a394ff;">Pubblicazione sul topic <code>mqttsonarTF26</code> di letture con D &lt; DFREE/2 per un intervallo di 2.0 secondi, seguito da rientro a D &gt; DFREE.</td>
                     <td style="padding: 10px; border: 1.5px solid #a394ff;">L'attore <code>sonar</code> inoltra a ioport <code>updateioport(true)</code> appena la lettura scende sotto DFREE/2 e <code>updateioport(false)</code> al rientro, ma non emette <code>sonarcontainer</code> verso cargoservice (il transitorio sotto i 3 s viene filtrato).</td>
                 </tr>
@@ -587,7 +587,7 @@ QActor cargorobot_analyst context ctxcargoservice {
     </p>
         
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Definizione di Sistema (sprint3_project.qak)</h3>
+        <h3>Definizione di Sistema (<a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint3_project/src/sprint3_project.qak" target="_blank">sprint3_project.qak</a>)</h3>
         <pre>
 System sprint3_project
 
@@ -642,7 +642,7 @@ ExternalQActor robotsmart context ctxrobotsmart
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;" id="rettifica">
-        <h3>Revisione della scelta MQTT: da supporto nativo ad adapter</h3>
+        <h3>Revisione della scelta MQTT: da supporto nativo ad <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint3_project/utils/sonar/PicoMqttAdapter.java" target="_blank">adapter</a></h3>
         <p>
             Nell’analisi era stato scelto il supporto nativo QAk (direttiva mqttBroker ... eventTopic). Durante l’integrazione con il PicoW abbiamo riscontrato un malfunzionamento intermittente: 
             i client MQTT creati dal framework (uno per ciascun attore del contesto, tutti sottoscritti allo stesso topic) si disconnettevano con l’errore MQTT connectionLost MqttException (0) - java.lang.Error: Error: could not match input. 
@@ -824,7 +824,7 @@ public class PicoMqttAdapter implements MqttCallback {
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>L'attore sonar</h3>
+        <h3>L'attore <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint3_project/src/sprint3_project.qak" target="_blank">sonar</a></h3>
         <p>
             L’attore sonar è l’adapter tecnologico tra il PicoW e il sistema. Nello stato iniziale crea il <code>PicoMqttAdapter</code>, che gestisce la connessione MQTT; 
             poi attende tre tipi di eventi: una lettura (<code>sonarreading</code>), un comando LED (<code>blinkLed</code>) oppure 5 secondi di silenzio. Per ogni lettura:
@@ -956,7 +956,7 @@ QActor sonar context ctxcargoservice {
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Raffinamento dell'attore cargoservice</h3>
+        <h3>Raffinamento dell'attore <a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint3_project/src/sprint3_project.qak" target="_blank">cargoservice</a></h3>
         <p>
             Rispetto alla versione precedente, cargoservice è stato esteso con: 
             <li>
@@ -1091,7 +1091,7 @@ Goto idle
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Firmware MicroPython su Raspberry PicoW (main.py)</h3>
+        <h3>Firmware MicroPython su Raspberry PicoW (<a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint3_pico/main.py" target="_blank">main.py</a>)</h3>
         <p>
             Il firmware è un unico ciclo non bloccante. Si connette al WiFi con nuovi tentativi (risparmio energetico del chip disattivato) 
             e al broker con client id univoco, keepalive di 30 s e ping ogni 10 s; se la rete cade, chiude il socket e si riconnette da solo. 
@@ -1351,7 +1351,7 @@ while True:
     </div>
 
     <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
-        <h3>Modifica degli ingressi degli slot (Hold.java)</h3>
+        <h3>Modifica degli ingressi degli slot (<a href="https://github.com/ariannabuffoni/TF2026/blob/main/sprint3_project/utils/cargoservice/Hold.java" target="_blank">Hold.java</a>)</h3>
         <p>
             Gli ingressi degli slot erano stati definiti nello Sprint2: slot1=(0,2), slot2=(0,3), slot3=(2,2), slot4=(2,3). 
             Durante i test dello Sprint 3 abbiamo osservato che la lunghezza effettiva dei passi del robot virtuale non resta costante tra un giro e l’altro (i passi risultano più corti) 
@@ -1366,7 +1366,87 @@ while True:
 <h2>Testing</h2> 
 <div class="remark">
     <p>
-        
+        I test di Livello A sono stati eseguiti con il PicoW spento, simulando le letture con <code>mosquitto_pub</code> sul topic mqttsonarTF26. I test di Livello B sono stati eseguiti con il PicoW reale, il sensore HC-SR04 e il simulatore.
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0; border: 1.5px solid #a394ff;">
+            <thead>
+                <tr style="background-color: #d9d4ff; color: #000000; text-align: center;">
+                    <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 18%;">ID Test</th>
+                    <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 22%;">Esito</th>
+                    <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 26%;">Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- TP-3.A1 -->
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">A1: Falso Positivo Container (&lt; 3s)</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>updateioport(true)</code> inviato subito alla prima lettura D &lt; DFREE/2, ma <code>sonarcontainer</code> filtrato e non inviato a cargoservice (durata &lt; 3s); rientro notificato con <code>updateioport(false)</code>.</td>
+                </tr>
+                <!-- TP-3.A2 -->
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">A2: Rilevamento Container Confermato (&gt;= 3s)</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>updateioport(true)</code> subito, poi “Container confermato a D=4.0 cm per &gt; 3s”, <code>cargoservice</code> avvia il trasporto</td>
+                </tr>
+                <!-- TP-3.A3 -->
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">A3: Rilascio Immediato IOPort</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">“Container rimosso” e <code>updateioport(false)</code> alla prima lettura ≥ DFREE/2</td>
+                </tr>
+                <!-- TP-3.A4 -->
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">A4: Rilevamento Guasto Sonar (&gt; 3s)</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Dopo &gt; 3.5s di D &gt; DFREE, emesso <code>sonarfault</code> verso cargoservice. In idle/engaged passa subito in Out of service; durante il trasporto lo completa e si blocca al termine. Display "Out of service" e LED spento.</td>
+                </tr>
+                <!-- TP-3.A5 -->
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">A5: Ripristino Funzionale del Sonar</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Il sonar emette <code>sonarrestored</code> a seguito di letture stabili con D &lt; DFREE; il sistema ritorna in IDLE e il display mostra "Service working".</td>
+                </tr>
+                <!-- TP-3.A6 -->
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">A6: Controllo Attuatore LED</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">
+                        <code>blinkLed(true)</code> a engaged e <code>false</code> a fine trasporto; controllare con 
+                        <code>mosquitto_sub -t mqttledTF26 -v</code> che il messaggio sia </code>msg(blinkLed,dispatch,sonar,picow,blinkLed(true),N)</code></td>
+                </tr>
+                <!-- TP-3.B1 -->
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">B1: Ciclo Completo con PicoW</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">prelievo, slot5, deposito, rientro in HOME; LED spento al rientro</td>
+                </tr>
+                <!-- TP-3.B2 -->
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">B2: Guasto sonar durante il trasporto</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;"></td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;"></td>
+                </tr>
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Timeot di 30s</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">“TIMEOUT scaduto”, slot rilasciato, LED spento</td>
+                </tr>
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;"><code>retrylater</code> con sistema engaged</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;"><code>retrylater('system_engaged')</code> con tempo residuo del timer</td>
+                </tr>
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Guasto robot</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">Superato</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">tratta fallita, rientro in HOME, transportFailed; Out of service “Guasto robot”, LED spento</td>
+                </tr>
+            </tbody>
+        </table>
+        Regression test del canale MQTT. Con il supporto nativo QAk, un ciclo di <code>mosquitto_pub</code> (messaggio <code>sonarreading(16)</code> ogni 500 ms, senza PicoW, GUI e robot) produceva 
+        <code>MQTT connectionLost ... could not match input</code> su cargoservice, ioport e sonar, dopo il quale le letture non arrivavano più. Con il <code>PicoMqttAdapter</code> lo stesso test, [durata, es. 10 minuti],
+         non produce l’errore, e dopo l’invio di <code>sonarreading(4)</code> il sonar rileva l’occupazione.<br/>
+        Problemi aperti. Il robot virtuale a volte urta lungo le tratte, soprattutto con il simulatore in secondo piano (vedi la modifica di Hold). Il problema non dipende dal sonar.
     </p>
 </div> 
 
@@ -1448,7 +1528,7 @@ while True:
         <line x1="430" y1="115" x2="430" y2="175" stroke="#5638fd" stroke-width="1.8" marker-end="url(#arrow)"/>
         <line x1="430" y1="175" x2="430" y2="115" stroke="#5638fd" stroke-width="1.8" marker-end="url(#arrow)"/>
         <rect x="330" y="132" width="200" height="24" rx="4" fill="#ffffff" stroke="#a394ff" stroke-width="1"/>
-        <text x="430" y="148" font-size="11" font-weight="bold" fill="#5638fd" text-anchor="middle">moverobot / alarm (TCP)</text>
+        <text x="430" y="148" font-size="11" font-weight="bold" fill="#5638fd" text-anchor="middle">moverobot</text>
 
         <!-- ================= 2. NODO CENTRALE: CTXCARGOSERVICE ================= -->
         <rect x="130" y="175" width="600" height="340" rx="12" fill="#ffffff" stroke="#5638fd" stroke-width="2.5"/>
@@ -1536,9 +1616,93 @@ while True:
  
 <h2>Maintenance</h2> 
 <div class="remark">
-    <p>
-        
-    </p>
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Quando cambia la rete (es. hotspot del telefono)</h3>
+            L’IP del broker è scritto in due punti, da aggiornare con <code>ipconfig</code>
+            (IPv4 dell’adattatore Wi-Fi): <code>MQTT_BROKER</code> in <code>main.py</code> e l’URL del <code>PicoMqttAdapter</code>
+            nello stato <code>s0</code> del sonar. Il PicoW supporta solo reti a 2,4 GHz; sul PC la rete deve essere “privata” e la porta 1883 aperta nel firewall. 
+            Le credenziali dell’hotspot si scelgono nel file <code>secrets</code> importato da <code>main.py</code>.
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Ordine di avvio</h3>
+            Prima i container (<code>docker-compose -f robotsmart26.yaml up</code>), poi il sistema QAk (<code>gradlew run</code>), per ultimo il PicoW. 
+            Dopo una collisione del robot: fermare il qak, <code>docker-compose down</code>, poi <code>up</code>, per riportare il robot in HOME.
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Parametri</h3>
+            <table style="width: 100%; border-collapse: collapse; margin: 15px 0; border: 1.5px solid #a394ff;">
+            <thead>
+                <tr style="background-color: #d9d4ff; color: #000000; text-align: center;">
+                    <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 18%;">Parametro</th>
+                    <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 22%;">Valore</th>
+                    <th style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; width: 26%;">Dove</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">DFREE</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">20 cm</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">sonar</td>
+                </tr>
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Finestra di convalida</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">3000 ms</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">sonar</td>
+                </tr>
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Watchdog del sonar</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">5 s</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">sonar</td>
+                </tr>
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Timeout di attesa del container</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">30 s</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">cargoservice</td>
+                </tr>
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;"><code>StepTime</code></td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">345 ms</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">cargorobot</td>
+                </tr>
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Tentativi di rientro in HOME</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">3</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">cargorobot</td>
+                </tr>
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Campionamento / pubblicazione</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">200 ms / 1 s</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">firmware</td>
+                </tr>
+                <!-- TP-3.B2 -->
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Valore senza eco</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">400 cm</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">firmware</td>
+                </tr>
+                <tr style="background-color: #f7f9ff;">
+                    <td style="padding: 10px; border: 1.5px solid #a394ff; font-weight: bold; color: #5638fd; text-align: center;">Keepalive MQTT / ping</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">30 s / 10 s</td>
+                    <td style="padding: 10px; border: 1.5px solid #a394ff;">firmware</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Montaggio del sensore</h3>
+            A vuoto deve leggere tra DFREE/2 e DFREE (circa 16-20 cm), altrimenti il sistema va in Out of service. Il container va tenuto a 4-6 cm, 
+            e sotto 2 cm l’HC-SR04 non misura bene. L’uscita ECHO è a 5 V: per il Pico (3,3 V) serve un partitore di tensione.
+    </div>
+
+    <div style="margin-bottom: 20px; border-left: 4px solid #5638fd; padding-left: 15px;">
+        <h3>Limiti noti</h3>
+           Il guasto del robot è permanente (<code>RobotFault</code> non viene azzerato): richiede riavvio, e una estensione futura è un comando di reset. 
+           All’avvio, finché il PicoW non invia la prima lettura, il sistema può risultare brevemente in Out of service. In Out of service il LED è spento 
+           (il LED integrato è monocromatico). L’IP del broker è fisso nel codice. I test del canale MQTT non sono ancora automatizzati.
+    </div>
 </div>
 
 <div style="background-color: rgba(86, 56, 253, 0.9); color: white; padding: 30px; font-family: sans-serif; margin-top: 50px; border-radius: 8px;">

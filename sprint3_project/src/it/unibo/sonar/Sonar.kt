@@ -43,7 +43,7 @@ class Sonar ( name: String, scope: CoroutineScope, isconfined: Boolean=false, is
 		return { //this:ActionBasciFsm
 				state("s0") { //this:State
 					action { //it:State
-						 Pico = sonar.PicoMqttAdapter(myself, "tcp://192.168.1.10:1883", "mqttsonarTF26", "mqttledTF26")  
+						 Pico = sonar.PicoMqttAdapter(myself, "tcp://192.168.137.1:1883", "mqttsonarTF26", "mqttledTF26")  
 						CommUtils.outblue("$name | pronto in ascolto degli eventi sonar via MQTT")
 						//genTimer( actor, state )
 					}
